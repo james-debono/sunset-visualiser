@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verification suite — Sunset Visualiser</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fbfbfa; --fg: #1b1b1a; --muted: #6b6b68; --rule: #e2e2de;
+    --pass: #1a7f4b; --fail: #c0392b; --card: #ffffff; --note: #f4f4f1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171a; --fg: #e8e8e6; --muted: #9a9a96; --rule: #2c2e33;
+      --pass: #4ec98a; --fail: #ff7a6b; --card: #1d1f23; --note: #232529;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 16px 80px; background: var(--bg); color: var(--fg);
+    font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .banner {
+    padding: 14px 18px; border-radius: 10px; font-weight: 600; margin-bottom: 28px;
+    border: 1px solid var(--rule); background: var(--card);
+  }
+  .banner.ok { color: var(--pass); }
+  .banner.bad { color: var(--fail); }
+  h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); margin: 32px 0 10px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .t { padding: 9px 0 9px 26px; position: relative; border-bottom: 1px solid var(--rule); }
+  .t:last-child { border-bottom: 0; }
+  .t::before {
+    position: absolute; left: 2px; top: 9px; font-weight: 700;
+  }
+  .t.ok::before { content: "\2713"; color: var(--pass); }
+  .t.bad::before { content: "\2717"; color: var(--fail); }
+  .t.bad { color: var(--fail); }
+  .notes {
+    margin: 7px 0 2px; padding: 8px 12px; background: var(--note);
+    border-radius: 7px; display: grid; grid-template-columns: auto 1fr; gap: 2px 16px;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--muted);
+  }
+  .notes dt { white-space: nowrap; }
+  .notes dd { margin: 0; color: var(--fg); }
+  pre.err {
+    margin: 8px 0 0; padding: 10px 12px; background: var(--note); border-radius: 7px;
+    color: var(--fail); white-space: pre-wrap; overflow-x: auto;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Verification suite</h1>
+  <p class="sub">
+    Every number this page relies on, checked against published values, closed-form
+    identities, or a second independent derivation. Source:
+    <a href="tests/physics.test.js">tests/physics.test.js</a> &middot;
+    <a href="index.html">back to the visualiser</a>
+  </p>
+  <div id="out">Running&hellip;</div>
+</main>
+
+<script type="module">
+  import './tests/physics.test.js';          // registers the suites
+  import { run } from './tests/harness.js';
+
+  const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+  function render({ results, passed, failed, total }) {
+    const parts = [];
+    const ok = failed === 0;
+    parts.push(
+      `<div class="banner ${ok ? 'ok' : 'bad'}">` +
+      (ok ? `✓ ${passed} of ${total} checks passed.`
+          : `✗ ${failed} of ${total} checks FAILED (${passed} passed).`) +
+      `</div>`,
+    );
+
+    for (const s of results) {
+      parts.push(`<h2>${esc(s.name)}</h2>`);
+      for (const t of s.tests) {
+        parts.push(`<div class="t ${t.ok ? 'ok' : 'bad'}">${esc(t.name)}`);
+        if (t.notes && t.notes.length) {
+          parts.push('<dl class="notes">');
+          for (const n of t.notes) {
+            parts.push(`<dt>${esc(n.label)}</dt><dd>${esc(n.value)}</dd>`);
+          }
+          parts.push('</dl>');
+        }
+        if (!t.ok) parts.push(`<pre class="err">${esc(t.error)}</pre>`);
+        parts.push('</div>');
+      }
+    }
+    document.getElementById('out').innerHTML = parts.join('');
+    document.title = (ok ? '✓ ' : '✗ ') + `${passed}/${total} — Verification suite`;
+    // Machine-readable hook for automated checking.
+    window.__TEST_SUMMARY__ = { passed, failed, total };
+  }
+
+  try {
+    render(run());
+  } catch (err) {
+    document.getElementById('out').innerHTML =
+      `<div class="banner bad">Suite could not run</div><pre class="err">${esc(err.stack || err)}</pre>`;
+    window.__TEST_SUMMARY__ = { passed: 0, failed: -1, total: 0, error: String(err) };
+  }
+</script>
+</body>
+</html>
