@@ -83,3 +83,15 @@ export function apparentDiscDeg(trueAltDeg, trueDiameterDeg, pressureHPa, temper
     apparentCentreAltDeg: (top + bottom) / 2,
   };
 }
+
+/**
+ * Apparent dip of the sea horizon for an eye `eyeHeightM` above the water.
+ *
+ * Terrestrial refraction bends the line of sight to the horizon too, so the
+ * horizon appears less depressed than pure geometry predicts. The standard
+ * navigational value is 1.76 arcmin x sqrt(height in metres), against a
+ * geometric 1.93 arcmin x sqrt(h) (American Practical Navigator, Bowditch).
+ */
+export function apparentHorizonDipDeg(eyeHeightM) {
+  return eyeHeightM > 0 ? (1.76 * Math.sqrt(eyeHeightM)) / 60 : 0;
+}

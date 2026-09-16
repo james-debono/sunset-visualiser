@@ -6,11 +6,9 @@
  * are a presentation layer only, so switching them can never change a result.
  */
 
-import { kmToMiles, metresToFeet, ARCMIN_PER_DEG, ARCSEC_PER_DEG } from './constants.js';
+import { kmToMiles, metresToFeet, ARCMIN_PER_DEG } from './constants.js';
 
 /** @typedef {'metric'|'imperial'|'both'} UnitMode */
-
-export const UNIT_MODES = /** @type {UnitMode[]} */ (['metric', 'imperial', 'both']);
 
 /** Fixed-decimal formatter with thousands separators. */
 function fmt(value, decimals) {
@@ -20,13 +18,18 @@ function fmt(value, decimals) {
   });
 }
 
-/** Choose a decimal count that keeps roughly `sig` significant figures. */
+/**
+ * Choose a decimal count that keeps roughly `sig` significant figures, but
+ * never shows decimals on values of ten thousand or more.
+ */
 function decimalsFor(value, sig = 4) {
   const a = Math.abs(value);
-  if (a === 0) return 0;
+  if (a === 0 || a >= 10000) return 0;
   const mag = Math.floor(Math.log10(a));
   return Math.max(0, Math.min(6, sig - 1 - mag));
 }
+
+const MINUS = '−';
 
 function combine(metric, imperial, mode) {
   if (mode === 'metric') return metric;
@@ -38,12 +41,16 @@ function combine(metric, imperial, mode) {
  * A distance given in km, rendered in km and/or miles.
  * @param {number} km
  * @param {UnitMode} mode
+ * @param {number} [sig]     significant figures
+ * @param {boolean} [signed] prefix + or a true minus sign, on every part
  */
-export function formatDistance(km, mode = 'metric', sig = 4) {
-  const mi = kmToMiles(km);
+export function formatDistance(km, mode = 'metric', sig = 4, signed = false) {
+  const sign = signed ? (km < 0 ? MINUS : '+') : km < 0 ? MINUS : '';
+  const a = Math.abs(km);
+  const mi = kmToMiles(a);
   return combine(
-    `${fmt(km, decimalsFor(km, sig))} km`,
-    `${fmt(mi, decimalsFor(mi, sig))} mi`,
+    `${sign}${fmt(a, decimalsFor(a, sig))} km`,
+    `${sign}${fmt(mi, decimalsFor(mi, sig))} mi`,
     mode,
   );
 }
@@ -75,17 +82,6 @@ export function formatSmallLength(m, mode = 'metric') {
 // --- Angles ------------------------------------------------------------------
 // Angles are unit-system independent, so these ignore UnitMode entirely.
 
-/** Degrees, to a sensible precision. */
-export const formatDeg = (deg, decimals = 3) => `${fmt(deg, decimals)}°`;
-
-/** Degrees rendered as arcminutes. */
-export const formatArcmin = (deg, decimals = 2) =>
-  `${fmt(deg * ARCMIN_PER_DEG, decimals)}′`;
-
-/** Degrees rendered as arcseconds. */
-export const formatArcsec = (deg, decimals = 2) =>
-  `${fmt(deg * ARCSEC_PER_DEG, decimals)}″`;
-
 /**
  * An angular diameter shown the way astronomers actually quote one: degrees
  * with arcminutes alongside, since 0.53 deg means little to most readers but
@@ -93,18 +89,6 @@ export const formatArcsec = (deg, decimals = 2) =>
  */
 export function formatAngularSize(deg) {
   return `${fmt(deg, 4)}° (${fmt(deg * ARCMIN_PER_DEG, 2)}′)`;
-}
-
-/**
- * Rate of change of angular size. Shown in arcseconds per minute, which is the
- * scale a person can reason about, plus percent per hour for comparison
- * between two models whose absolute sizes differ.
- */
-export function formatAngularRate(degPerHour, currentDeg) {
-  const arcsecPerMin = degPerHour * ARCSEC_PER_DEG / 60;
-  const pctPerHour = currentDeg > 0 ? (degPerHour / currentDeg) * 100 : 0;
-  const sign = arcsecPerMin > 0 ? '+' : '';
-  return `${sign}${fmt(arcsecPerMin, 4)}″/min  (${sign}${fmt(pctPerHour, 3)} %/h)`;
 }
 
 /** Apparent solar time as HH:MM:SS. */
@@ -115,13 +99,4 @@ export function formatSolarTime(hours) {
   const s = total % 60;
   const pad = (n) => String(n).padStart(2, '0');
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
-}
-
-/** A signed duration in hours as "-2h 45m" / "+12m". */
-export function formatOffset(hours) {
-  const sign = hours < 0 ? '-' : '+';
-  const total = Math.round(Math.abs(hours) * 60);
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  return h > 0 ? `${sign}${h}h ${m}m` : `${sign}${m}m`;
 }

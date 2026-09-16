@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sunset Visualiser</title>
+<meta name="description" content="Why the Sun does not shrink as it sets, and what it would do if the Earth were flat. Every number is computed in the open and independently tested.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <h1>Sunset Visualiser</h1>
+      <p>The Sun keeps the same size all the way down. On a flat Earth it could not.</p>
+      <p class="scenario" id="scenario-line">&nbsp;</p>
+    </div>
+
+    <div class="globals">
+      <div role="group" aria-label="Units">
+        <span class="seg-label">Units</span>
+        <span class="seg" id="units">
+          <button type="button" data-value="metric" aria-pressed="true">Metric</button>
+          <button type="button" data-value="imperial" aria-pressed="false">Imperial</button>
+          <button type="button" data-value="both" aria-pressed="false">Both</button>
+        </span>
+      </div>
+      <label class="switch" title="Apply standard atmospheric refraction (Saemundsson 1986) to both models">
+        <input type="checkbox" id="refraction">
+        Refraction
+      </label>
+      <nav>
+        <a href="tests.html">Verification tests</a>
+        <a href="docs/MATH.md">The maths</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="quads">
+
+    <!-- Top left: globe, camera -->
+    <section class="quad" aria-labelledby="h-globe-camera">
+      <div class="quad-head">
+        <span class="key globe" aria-hidden="true"></span>
+        <h2 id="h-globe-camera">Globe Earth <span class="view">· camera view</span></h2>
+        <span class="meta" id="globe-camera-meta"></span>
+      </div>
+      <div class="stage">
+        <canvas id="globe-camera" role="img" aria-label="Camera view of the sunset on a spherical Earth"></canvas>
+        <dl class="readout on-photo" id="globe-camera-readout"></dl>
+      </div>
+    </section>
+
+    <!-- Top right: globe, side -->
+    <section class="quad" aria-labelledby="h-globe-side">
+      <div class="quad-head">
+        <span class="key globe" aria-hidden="true"></span>
+        <h2 id="h-globe-side">Globe Earth <span class="view">· side view</span></h2>
+        <span class="meta">Distances not to scale · angles exact</span>
+      </div>
+      <div class="stage">
+        <canvas id="globe-side" role="img" aria-label="Diagram of the observer rotating on the Earth, showing the horizon line, the line to the Sun and the angle between them"></canvas>
+        <dl class="readout on-diagram" id="globe-side-readout"></dl>
+      </div>
+    </section>
+
+    <!-- Bottom left: flat, camera -->
+    <section class="quad" aria-labelledby="h-flat-camera">
+      <div class="quad-head">
+        <span class="key flat" aria-hidden="true"></span>
+        <h2 id="h-flat-camera">Flat Earth <span class="view">· camera view</span></h2>
+        <span class="meta" id="flat-camera-meta"></span>
+      </div>
+      <div class="stage">
+        <canvas id="flat-camera" role="img" aria-label="Camera view of the sunset if the Earth were flat"></canvas>
+        <dl class="readout on-photo" id="flat-camera-readout"></dl>
+      </div>
+    </section>
+
+    <!-- Bottom right: flat, side -->
+    <section class="quad" aria-labelledby="h-flat-side">
+      <div class="quad-head">
+        <span class="key flat" aria-hidden="true"></span>
+        <h2 id="h-flat-side">Flat Earth <span class="view">· side view</span></h2>
+        <span class="head-controls">
+          <span class="seg-label">Sun starts</span>
+          <span class="seg seg-sm" id="anchor">
+            <button type="button" data-value="elevation" aria-pressed="true" title="Place the Sun so it starts at the same elevation the real Sun has. Both camera views then begin identical.">at real elevation</button>
+            <button type="button" data-value="subsolar" aria-pressed="false" title="Place the Sun above the measured subsolar point (where the real Sun is overhead). No free parameters, but it starts at the wrong elevation.">above real subsolar point</button>
+          </span>
+        </span>
+      </div>
+      <div class="quad-controls">
+        <label class="field">
+          Sun height
+          <input type="range" id="height-slider" min="0" max="1000" step="1" aria-label="Sun height, logarithmic slider">
+        </label>
+        <span class="field">
+          <input type="number" id="height-input" min="1" step="any" aria-label="Sun height value">
+          <span class="unit" id="height-unit">km</span>
+        </span>
+        <label class="field">
+          <select id="height-presets" aria-label="Height presets"></select>
+        </label>
+      </div>
+      <div class="stage">
+        <canvas id="flat-side" role="img" aria-label="Scale diagram of the Sun moving away above a flat Earth, showing the line of sight and its angle to the ground"></canvas>
+        <dl class="readout on-diagram" id="flat-side-readout"></dl>
+      </div>
+    </section>
+
+  </main>
+
+  <section class="analysis" aria-label="Analysis">
+
+    <div class="card">
+      <div class="card-head">
+        <h3>Angular diameter</h3>
+        <span class="sub">arcminutes</span>
+        <span class="legend" aria-hidden="true">
+          <span><i class="key globe"></i>Globe</span>
+          <span><i class="key flat"></i>Flat</span>
+        </span>
+      </div>
+      <div class="chart" id="chart-size">
+        <canvas role="img" aria-label="Chart of angular diameter against time for both models"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h3>Rate of change</h3>
+        <span class="sub">arcseconds per minute · below zero = shrinking</span>
+        <span class="legend" aria-hidden="true">
+          <span><i class="key globe"></i>Globe</span>
+          <span><i class="key flat"></i>Flat</span>
+        </span>
+      </div>
+      <div class="chart" id="chart-rate">
+        <canvas role="img" aria-label="Chart of the rate of change of angular diameter against time for both models"></canvas>
+      </div>
+    </div>
+
+    <div class="card compare-card">
+      <div class="card-head">
+        <h3>Right now</h3>
+        <span class="sub" id="compare-time"></span>
+        <button type="button" class="link-btn" id="table-toggle" aria-expanded="false" style="margin-left:auto">Show data table</button>
+      </div>
+      <div id="compare-view">
+        <table class="compare" id="compare">
+          <thead>
+            <tr>
+              <th scope="col"></th>
+              <th scope="col"><i class="key globe"></i>Globe</th>
+              <th scope="col"><i class="key flat"></i>Flat</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="verdict" id="verdict"></p>
+      </div>
+      <div class="table-view" id="table-view" hidden></div>
+    </div>
+
+  </section>
+
+  <footer class="transport" aria-label="Playback">
+    <div class="buttons">
+      <button type="button" class="icon-btn" id="restart" aria-label="Restart" title="Restart (Home)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M3 2h2v12H3zM14 2v12L6 8z"/></svg>
+      </button>
+      <button type="button" class="icon-btn primary" id="play" aria-label="Play" title="Play / pause (Space)">
+        <svg viewBox="0 0 16 16" aria-hidden="true" id="play-icon"><path fill="currentColor" d="M4 2.5v11l9.5-5.5z"/></svg>
+      </button>
+    </div>
+
+    <div class="clock" aria-live="off">
+      <div class="time" id="clock-time">15:00:00</div>
+      <div class="rel" id="clock-rel">apparent solar time</div>
+    </div>
+
+    <div class="scrub">
+      <input type="range" id="scrub" min="0" max="1" step="1" value="0" aria-label="Time">
+      <div class="scrub-ticks" id="scrub-ticks" aria-hidden="true"></div>
+    </div>
+
+    <div class="settings">
+      <label class="field">
+        Speed
+        <input type="range" id="speed" min="0" max="1000" step="1" aria-label="Playback speed">
+        <span class="value" id="speed-value"></span>
+      </label>
+      <label class="field">
+        Lens
+        <input type="range" id="focal" min="0" max="1" step="1" aria-label="Camera focal length">
+        <span class="value" id="focal-value"></span>
+      </label>
+      <label class="field">
+        Loupe
+        <select id="loupe" aria-label="Loupe focal length">
+          <option value="400">400 mm</option>
+          <option value="800" selected>800 mm</option>
+          <option value="1600">1600 mm</option>
+        </select>
+      </label>
+    </div>
+  </footer>
+
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -34,9 +34,14 @@ import { makeGlobeModel, observerSunDistanceKm } from '../js/physics/globe.js';
 import { makeFlatModel, minimumHeightForImperceptibleShrink } from '../js/physics/flat.js';
 import {
   refractionFromTrueDeg, refractionFromApparentDeg, apparentAltitudeDeg, apparentDiscDeg,
+  apparentHorizonDipDeg,
 } from '../js/physics/refraction.js';
 import { buildScenario, summarise, DEFAULT_SCENARIO } from '../js/physics/scenario.js';
 import { formatDistance, formatSpeed, formatSolarTime } from '../js/physics/units.js';
+import {
+  verticalFovDeg, focalForVerticalFovMm, focalPx, cameraBasis, project,
+  pitchForHorizonFractionDeg, defaultFraming, discOutline, projectVector,
+} from '../js/physics/optics.js';
 
 // -----------------------------------------------------------------------------
 
@@ -426,6 +431,14 @@ suite('Refraction', () => {
     lessThan(d.verticalDeg, 0.5329, 'refraction can only compress the disc, never enlarge it');
   });
 
+  test('refraction reduces the sea-horizon dip, but only slightly', () => {
+    const geo = horizonDipDeg(1.7) * 60, app = apparentHorizonDipDeg(1.7) * 60;
+    note('geometric dip at 1.7 m', `${geo.toFixed(2)} arcmin`);
+    note('apparent dip at 1.7 m', `${app.toFixed(2)} arcmin`);
+    lessThan(app, geo, 'refraction lifts the horizon');
+    approx(app / geo, 1.76 / 1.93, 0.01, 'the standard navigational ratio');
+  });
+
   test('refraction is negligible at the start of the window', () => {
     lessThan(refractionFromTrueDeg(45) * 3600, 70,
       'under 70 arcsec at 45 deg, against a 1919 arcsec disc');
@@ -489,5 +502,74 @@ suite('Formatting', () => {
     approx(0, 0, 0);
     assert(formatSolarTime(15.5) === '15:30:00', formatSolarTime(15.5));
     assert(formatSolarTime(18) === '18:00:00', formatSolarTime(18));
+  });
+});
+
+suite('Camera optics', () => {
+  test('field of view matches the textbook figures for full frame', () => {
+    note('24 mm', `${verticalFovDeg(24).toFixed(2)} deg vertical`);
+    note('35 mm', `${verticalFovDeg(35).toFixed(2)} deg vertical`);
+    approx(verticalFovDeg(24), 53.13, 0.01, '24 mm vertical FOV');
+    approx(verticalFovDeg(50), 26.99, 0.01, '50 mm vertical FOV');
+    approxRel(focalForVerticalFovMm(verticalFovDeg(85)), 85, 1e-12, 'round trip');
+  });
+
+  test('a point straight ahead projects to the image centre', () => {
+    const cam = { basis: cameraBasis(270, 20), fPx: 1000 };
+    const p = project(20, 270, cam);
+    approx(p.x, 0, 1e-9); approx(p.y, 0, 1e-9);
+  });
+
+  test('projection is rectilinear: offset = f tan(angle)', () => {
+    const cam = { basis: cameraBasis(270, 0), fPx: 1000 };
+    approx(project(30, 270, cam).y, 1000 * Math.tan(30 * Math.PI / 180), 1e-9, 'vertical');
+    // Facing west, north is to the right.
+    greaterThan(project(0, 300, cam).x, 0, 'north of west appears to the right');
+    assert(project(0, 90, cam) === null, 'a point behind the camera is not drawn');
+  });
+
+  test('the loupe must be aimed at the Sun: edge-of-frame stretch is real and large', () => {
+    // Why the loupe is its own camera. A 0.53 deg disc 22.6 deg off-axis is
+    // drawn noticeably taller than the same disc on-axis.
+    const cam = { basis: cameraBasis(270, 22.63), fPx: 1000 };
+    const r = 0.5329 / 2;
+    const onAxis = project(22.63 + r, 270, cam).y - project(22.63 - r, 270, cam).y;
+    const offAxis = project(45 + r, 270, cam).y - project(45 - r, 270, cam).y;
+    note('vertical stretch 22.6 deg off-axis', `${((offAxis / onAxis - 1) * 100).toFixed(1)} %`);
+    between(offAxis / onAxis, 1.15, 1.20, 'about 1/cos^2(22.6 deg)');
+  });
+
+  test('pitch places the horizon at the requested height in frame', () => {
+    const f = 24, H = 1000, frac = 0.08;
+    const cam = { basis: cameraBasis(270, pitchForHorizonFractionDeg(f, frac)), fPx: focalPx(f, H) };
+    const yFromBottom = H / 2 + project(0, 270, cam).y;
+    approx(yFromBottom / H, frac, 1e-9);
+  });
+
+  test('default framing: 24 mm is the narrowest common lens holding horizon to Sun at 2% margins', () => {
+    const top = 45 + 0.5311 / 2;
+    const fr = defaultFraming(top, 0.02);
+    note('longest lens that fits', `${fr.maxFocalMm.toFixed(2)} mm`);
+    note('chosen', `${fr.focalMm} mm`);
+    note('horizon from bottom', `${(fr.horizonFraction * 100).toFixed(2)} % of frame height`);
+    assert(fr.focalMm === 24, `expected 24 mm, got ${fr.focalMm}`);
+    greaterThan(fr.horizonFraction, 0.02, 'margin respected');
+    // And the Sun's top edge is inside the frame by the same margin.
+    const cam = { basis: cameraBasis(270, top / 2), fPx: focalPx(24, 1000) };
+    const topY = 500 + project(top, 270, cam).y;
+    approx(1 - topY / 1000, fr.horizonFraction, 1e-9, 'symmetric margins');
+  });
+
+  test('a disc outline viewed head-on subtends exactly its angular diameter', () => {
+    // Aim a camera straight at the disc: the projected outline must span
+    // 2 f tan(r) in both axes, for any altitude of the disc.
+    for (const alt of [0, 20, 45, 70]) {
+      const cam = { basis: cameraBasis(270, alt), fPx: 1000 };
+      const pts = discOutline(alt, 270, 0.25, 0.25, 64).map((v) => projectVector(v, cam));
+      const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+      const expected = 2 * 1000 * Math.tan(0.25 * Math.PI / 180);
+      approxRel(Math.max(...xs) - Math.min(...xs), expected, 1e-6, `width at altitude ${alt}`);
+      approxRel(Math.max(...ys) - Math.min(...ys), expected, 1e-6, `height at altitude ${alt}`);
+    }
   });
 });
