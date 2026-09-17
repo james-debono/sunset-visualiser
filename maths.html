@@ -386,7 +386,7 @@
   <h2 id="refraction"><span class="n">7</span>Refraction</h2>
   <span class="impl">refraction.js</span>
 
-  <p><strong>Off by default</strong>, and applied equally to both models when switched on. The argument here is about angular <em>size</em>, and refraction acts on the vertical axis only, so it would muddy the comparison. It is implemented and adjustable anyway, so that &ldquo;what about refraction?&rdquo; has an answer rather than a shrug.</p>
+  <p><strong>Standard air by default</strong>, and applied equally to both models. Real sunsets happen in an atmosphere, and the comparison does not depend on refraction either way, because it acts on the vertical axis only (&sect;7.2). &ldquo;Off (pure geometry)&rdquo; is one of the presets if you want the bare geometry.</p>
 
   <p><strong>Sæmundsson (1986)</strong>, from true altitude <i>h</i> &mdash; the direction the app uses, since geometry is computed first:</p>
 
@@ -431,7 +431,21 @@
 
   <p><strong>Horizon dip.</strong> With refraction on, the sea-horizon dip uses the navigational value 1.76&prime;&radic;<i>h</i>[m], which is 2.29&prime; at 1.7 m against a geometric 2.51&prime; (Bowditch). On the flat model the horizon is the vanishing line of the plane, at exactly 0&deg;.</p>
 
-  <p>Both formulae break down below about &minus;1&deg; apparent altitude, where real refraction is not predictable from a formula of this kind.</p>
+  <h3>7.3 Where the formulae stop working</h3>
+
+  <p>Both formulae contain an inner term of the form <i>h</i> + <i>k</i>/(<i>h</i> + <i>c</i>), which has a minimum at <i>h</i> = &radic;<i>k</i> &minus; <i>c</i>. Below that altitude the term turns and refraction starts <em>falling</em> with depth, which is not what real air does. Applied to a disc it is worse than wrong: the upper limb would get more refraction than the lower, stretching the Sun vertically instead of squashing it.</p>
+
+  <table>
+    <thead><tr><th>Formula</th><th class="num">Valid down to</th><th class="num">Maximum modelled refraction</th></tr></thead>
+    <tbody>
+      <tr><td>Sæmundsson (true altitude)</td><td class="num">&minus;1.901&deg;</td><td class="num">44.65&prime; in standard air</td></tr>
+      <tr><td>Bennett (apparent altitude)</td><td class="num">&minus;1.696&deg;</td><td class="num">&mdash;</td></tr>
+    </tbody>
+  </table>
+
+  <p>Below those altitudes the code <strong>holds refraction at its maximum modelled value</strong> rather than following the formula down. Real refraction keeps growing with depth, so this understates both the lift and the flattening &mdash; the conservative direction, and it never produces the nonsense. The test suite walks both formulae from 60&deg; down to &minus;6&deg; and requires that refraction never decreases, and checks the disc is never widened at any altitude down to 4&deg; below the horizon under every preset.</p>
+
+  <p>This matters in practice because the timeline runs to 4&deg; below the horizon, so that the disc can be seen to set even under the &times;4 preset, which lifts it by nearly 3&deg;.</p>
 
   <!-- 8 ------------------------------------------------------------------ -->
   <h2 id="camera"><span class="n">8</span>The camera</h2>

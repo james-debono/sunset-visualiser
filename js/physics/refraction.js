@@ -1,11 +1,11 @@
 /**
  * Atmospheric refraction.
  *
- * This is off by default. The argument on this page is about angular *size*,
- * and refraction is a vertical-axis effect that would only muddy it. But it is
- * implemented, adjustable and documented, because leaving it out silently
- * invites "you ignored refraction" and baking one fixed value in invites "you
- * picked a convenient number".
+ * Standard air is the default, since real sunsets happen in an atmosphere, and
+ * the comparison the page makes does not depend on refraction either way: it is
+ * a vertical-axis effect. It is adjustable, and documented, because leaving it
+ * out invites "you ignored refraction" and baking one fixed value in invites
+ * "you picked a convenient number".
  *
  * Two things it does near the horizon, both real and both worth seeing:
  *
@@ -30,11 +30,28 @@
  *     prediction of them.
  *
  * Formulae assume the standard atmosphere of their authors (1010 hPa, 10 C).
- * Both break down below about -1 deg apparent altitude, where real refraction
- * is not predictable from a formula of this kind.
+ * Both stop behaving below about -1.9 deg, where their inner term turns and the
+ * curve starts *falling* with depth -- which, applied to a disc, would refract
+ * the upper limb more than the lower and stretch the Sun vertically instead of
+ * squashing it. Refraction is therefore held at its maximum modelled value
+ * below that altitude (see MONOTONIC_LIMIT below). Real refraction keeps
+ * growing down there, so this is the conservative choice: it understates the
+ * lift and understates the flattening, and it never produces the nonsense.
  */
 
 import { DEG } from './constants.js';
+
+/**
+ * Altitudes below which each formula stops being monotonic, and is therefore
+ * clamped. Each is the minimum of its inner term h + k/(h + c), at
+ * h = sqrt(k) - c.
+ */
+export const MONOTONIC_LIMIT = Object.freeze({
+  /** Saemundsson, in true altitude: sqrt(10.3) - 5.11 */
+  trueDeg: Math.sqrt(10.3) - 5.11,
+  /** Bennett, in apparent altitude: sqrt(7.31) - 4.4 */
+  apparentDeg: Math.sqrt(7.31) - 4.4,
+});
 
 /** Reference conditions for both formulae. */
 export const REF_PRESSURE_HPA = 1010;
@@ -79,7 +96,7 @@ export function conditionsFactor(c = {}) {
  * @param {Conditions} [c]
  */
 export function refractionFromTrueDeg(trueAltDeg, c) {
-  const h = trueAltDeg;
+  const h = Math.max(trueAltDeg, MONOTONIC_LIMIT.trueDeg);
   const arcmin = 1.02 / Math.tan((h + 10.3 / (h + 5.11)) * DEG);
   return (arcmin / 60) * conditionsFactor(c);
 }
@@ -94,7 +111,7 @@ export function refractionFromTrueDeg(trueAltDeg, c) {
  * @param {Conditions} [c]
  */
 export function refractionFromApparentDeg(apparentAltDeg, c) {
-  const h = apparentAltDeg;
+  const h = Math.max(apparentAltDeg, MONOTONIC_LIMIT.apparentDeg);
   const arcmin = 1 / Math.tan((h + 7.31 / (h + 4.4)) * DEG);
   return (arcmin / 60) * conditionsFactor(c);
 }
@@ -114,8 +131,9 @@ export function apparentAltitudeDeg(trueAltDeg, c) {
  *
  * The limbs refract by different amounts, so the vertical diameter shrinks.
  * The horizontal diameter is unaffected at any strength of refraction, because
- * refraction depends only on altitude. However strong it gets, it can only
- * ever squash the disc, never widen it.
+ * refraction depends only on altitude. However strong it gets, and however low
+ * the Sun goes, it can only ever squash the disc, never widen it -- the test
+ * suite checks that down to 4 degrees below the horizon for every preset.
  *
  * @param {number} trueAltDeg
  * @param {number} trueDiameterDeg

@@ -40,10 +40,14 @@ const { globe, config: cfg, declinationDeg } = scenario;
 const T0 = scenario.startSolarTime;         // three hours before sunset
 const TS = scenario.sunsetSolarTime;        // geometric sunset
 
-// The timeline runs a little past geometric sunset, until the Sun's centre is a
-// full degree down, so the disc can be seen to go -- with or without refraction.
-const hEnd = hourAngleAtAltitude(cfg.latDeg, declinationDeg, -1.0);
-const T1 = hEnd != null ? solarTimeFromHourAngle(hEnd) : TS + 5 / 60;
+// The timeline runs past geometric sunset until the Sun's centre is 4 deg
+// down. That is far enough for the disc to set under *any* refraction setting,
+// including the x4 mirage preset, which lifts the Sun by nearly 2 deg at the
+// horizon. The end point is fixed rather than following the current preset, so
+// that changing refraction never rescales the charts underneath you.
+const TIMELINE_END_ALT_DEG = -4.0;
+const hEnd = hourAngleAtAltitude(cfg.latDeg, declinationDeg, TIMELINE_END_ALT_DEG);
+const T1 = hEnd != null ? solarTimeFromHourAngle(hEnd) : TS + 15 / 60;
 
 const START = globe.sample(T0);
 const CAMERA_YAW = globe.sample(TS).azimuthDeg;   // face where the Sun sets
@@ -63,8 +67,11 @@ const state = {
   playing: false,
   speed: 600,
   units: 'metric',
-  /** One of REFRACTION_PRESETS. 'off' means pure geometry. */
-  refraction: REFRACTION_PRESETS[0],
+  /**
+   * One of REFRACTION_PRESETS. Standard air by default: real sunsets happen in
+   * an atmosphere, and the comparison does not depend on it either way.
+   */
+  refraction: REFRACTION_PRESETS.find((p) => p.id === 'standard'),
   focalMm: FRAMING.focalMm,
   loupeMm: 800,
   heightKm: cfg.flatHeightKm,
@@ -484,18 +491,32 @@ function setPlaying(on) {
   state.playing = on;
   $('play-icon').firstElementChild.setAttribute('d', on ? PAUSE_ICON : PLAY_ICON);
   $('play').setAttribute('aria-label', on ? 'Pause' : 'Play');
-  if (on) requestAnimationFrame(frame);
-  else requestRender();
+  if (on) {
+    requestAnimationFrame(frame);
+  } else {
+    // The URL only tracks time when the clock is not running, so that playback
+    // does not rewrite history sixty times a second.
+    writeState();
+    requestRender();
+  }
 }
 
 function seek(t) {
   state.t = Math.min(T1, Math.max(T0, t));
+  writeState();
   if (!state.playing) requestRender();
 }
 
 // -----------------------------------------------------------------------------
 // Controls
 // -----------------------------------------------------------------------------
+
+/** Mark the pressed button of a segmented control from a value. */
+function syncSegmented(el, value) {
+  for (const b of el.querySelectorAll('button[data-value]')) {
+    b.setAttribute('aria-pressed', String(b.dataset.value === value));
+  }
+}
 
 function bindSegmented(el, onChange) {
   el.addEventListener('click', (e) => {
@@ -508,6 +529,7 @@ function bindSegmented(el, onChange) {
 
 bindSegmented($('units'), (v) => {
   state.units = v;
+  writeState();
   syncHeightControls();
   renderScenarioLine();
   renderVerdict();
@@ -516,6 +538,7 @@ bindSegmented($('units'), (v) => {
 
 bindSegmented($('anchor'), (v) => {
   state.anchor = v;
+  writeState();
   rebuildFlat();
   recomputeMinHeight();
   buildPresets();
@@ -547,6 +570,7 @@ function buildRefractionOptions() {
 $('refraction').addEventListener('change', (e) => {
   state.refraction = REFRACTION_PRESETS.find((p) => p.id === e.target.value) ?? REFRACTION_PRESETS[0];
   $('refraction-note').textContent = state.refraction.note;
+  writeState();
   requestRender();
 });
 
@@ -580,8 +604,8 @@ const SPEED_MAX = 3600;
 const speed = $('speed');
 const speedFromSlider = (v) => Math.pow(SPEED_MAX, v / 1000);
 const sliderFromSpeed = (s) => Math.round((Math.log(s) / Math.log(SPEED_MAX)) * 1000);
-speed.value = String(sliderFromSpeed(state.speed));
 function syncSpeed() {
+  speed.value = String(sliderFromSpeed(state.speed));
   const secs = ((T1 - T0) * 3600) / state.speed;
   const dur = secs >= 120 ? `${(secs / 60).toFixed(0)} min` : `${secs.toFixed(0)} s`;
   $('speed-value').textContent = `×${Math.round(state.speed)} · ${dur}`;
@@ -589,24 +613,28 @@ function syncSpeed() {
 speed.addEventListener('input', () => {
   state.speed = speedFromSlider(Number(speed.value));
   syncSpeed();
+  writeState();
 });
 
 // Lens: snaps to common focal lengths.
 const focal = $('focal');
 focal.max = String(COMMON_FOCAL_LENGTHS_MM.length - 1);
-focal.value = String(COMMON_FOCAL_LENGTHS_MM.indexOf(state.focalMm));
 function syncFocal() {
+  focal.value = String(COMMON_FOCAL_LENGTHS_MM.indexOf(state.focalMm));
+  $('loupe').value = String(state.loupeMm);
   $('focal-value').textContent = `${state.focalMm} mm`;
   focal.setAttribute('aria-valuetext', `${state.focalMm} millimetres`);
 }
 focal.addEventListener('input', () => {
   state.focalMm = COMMON_FOCAL_LENGTHS_MM[Number(focal.value)];
   syncFocal();
+  writeState();
   requestRender();
 });
 
 $('loupe').addEventListener('change', (e) => {
   state.loupeMm = Number(e.target.value);
+  writeState();
   requestRender();
 });
 
@@ -644,6 +672,7 @@ function setHeight(km) {
   syncHeightControls();
   updateCharts();
   renderVerdict();
+  writeState();
   requestRender();
 }
 
@@ -735,15 +764,76 @@ onThemeChange(() => {
 });
 
 // -----------------------------------------------------------------------------
+// URL state
+//
+// Every setting lives in the location hash. That makes a given moment
+// shareable, and it means leaving for the maths page and pressing Back
+// restores what you had. Browsers also restore raw form values on history
+// navigation, which used to leave a slider sitting at one value while the
+// model held another; every control is now written from state, so the two
+// cannot disagree.
+// -----------------------------------------------------------------------------
+
+let writeStateQueued = false;
+function writeState() {
+  if (writeStateQueued) return;
+  writeStateQueued = true;
+  requestAnimationFrame(() => {
+    writeStateQueued = false;
+    const p = new URLSearchParams({
+      t: state.t.toFixed(4),
+      h: String(Math.round(state.heightKm)),
+      a: state.anchor,
+      u: state.units,
+      r: state.refraction.id,
+      f: String(state.focalMm),
+      l: String(state.loupeMm),
+      s: String(Math.round(state.speed)),
+    });
+    history.replaceState(null, '', `#${p}`);
+  });
+}
+
+function readState() {
+  if (!location.hash || location.hash.length < 2) return;
+  const p = new URLSearchParams(location.hash.slice(1));
+  const num = (key) => {
+    const v = Number(p.get(key));
+    return p.has(key) && Number.isFinite(v) ? v : null;
+  };
+
+  const r = REFRACTION_PRESETS.find((x) => x.id === p.get('r'));
+  if (r) state.refraction = r;
+  if (['metric', 'imperial', 'both'].includes(p.get('u'))) state.units = p.get('u');
+  if (['elevation', 'subsolar'].includes(p.get('a'))) state.anchor = p.get('a');
+
+  const f = num('f');
+  if (f !== null && COMMON_FOCAL_LENGTHS_MM.includes(f)) state.focalMm = f;
+  const l = num('l');
+  if (l !== null && [400, 800, 1600].includes(l)) state.loupeMm = l;
+  const sp = num('s');
+  if (sp !== null) state.speed = Math.min(3600, Math.max(1, sp));
+  const h = num('h');
+  if (h !== null) state.heightKm = Math.min(HEIGHT_MAX_KM, Math.max(HEIGHT_MIN_KM, h));
+  const t = num('t');
+  if (t !== null) state.t = Math.min(T1, Math.max(T0, t));
+
+  rebuildFlat();
+}
+
+// -----------------------------------------------------------------------------
 // Start
 // -----------------------------------------------------------------------------
 
+readState();
 recomputeMinHeight();
 buildRefractionOptions();
 buildPresets();
 buildScrubTicks();
 syncSpeed();
 syncFocal();
+syncSegmented($('units'), state.units);
+syncSegmented($('anchor'), state.anchor);
 renderScenarioLine();
 sizeChart.setTokens(tokens);
 rateChart.setTokens(tokens);

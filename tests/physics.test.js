@@ -35,6 +35,7 @@ import { makeFlatModel, minimumHeightForImperceptibleShrink } from '../js/physic
 import {
   refractionFromTrueDeg, refractionFromApparentDeg, apparentAltitudeDeg, apparentDiscDeg,
   apparentHorizonDipDeg, conditionsFactor, REFRACTION_PRESETS, STANDARD_CONDITIONS,
+  MONOTONIC_LIMIT,
 } from '../js/physics/refraction.js';
 import { buildScenario, summarise, DEFAULT_SCENARIO } from '../js/physics/scenario.js';
 import { formatDistance, formatSpeed, formatSolarTime } from '../js/physics/units.js';
@@ -614,18 +615,49 @@ suite('Refraction settings', () => {
 
   test('no amount of refraction widens the disc: width is exactly untouched', () => {
     // The whole reason refraction cannot rescue the flat model. However hard it
-    // is pushed, it compresses the height and leaves the width alone.
+    // is pushed, and however far below the horizon the Sun goes, it compresses
+    // the height and leaves the width alone.
+    //
+    // The below-horizon altitudes here matter: without the monotonic clamp in
+    // refraction.js, the Saemundsson formula turns over near -1.9 deg and
+    // refracts the upper limb more than the lower, which stretched the disc to
+    // 75 arcmin tall against a 32 arcmin width. The app's timeline reaches
+    // those altitudes, so the test has to as well.
     const theta = 0.5311;
     for (const p of REFRACTION_PRESETS.filter((x) => x.on)) {
-      for (const alt of [0, 1, 5, 20, 45]) {
+      for (const alt of [45, 20, 5, 1, 0, -0.5, -1, -1.9, -2.5, -3.5, -4]) {
         const d = apparentDiscDeg(alt, theta, p.conditions);
         approx(d.horizontalDeg, theta, 0, `${p.id} at ${alt} deg: width`);
-        lessThan(d.verticalDeg, theta, `${p.id} at ${alt} deg: height`);
+        lessThan(d.verticalDeg, theta + 1e-12, `${p.id} at ${alt} deg: height`);
       }
     }
     const extreme = apparentDiscDeg(0, theta, { scale: 4 });
     note('at x4 refraction on the horizon', `height ${(extreme.flattening * 100).toFixed(1)} % of width`);
     lessThan(extreme.flattening, 0.6, 'a x4 disc is squashed hard');
+  });
+
+  test('refraction never falls as the Sun sinks: it saturates instead', () => {
+    // Real refraction keeps growing with depth; the formulae stop doing so
+    // below their turning point, so they are clamped there. Holding the value
+    // understates the lift, which is the safe direction to be wrong in.
+    note('Saemundsson clamp', `${MONOTONIC_LIMIT.trueDeg.toFixed(4)} deg true altitude`);
+    note('Bennett clamp', `${MONOTONIC_LIMIT.apparentDeg.toFixed(4)} deg apparent altitude`);
+    let prev = 0;
+    for (let alt = 60; alt >= -6; alt -= 0.25) {
+      const r = refractionFromTrueDeg(alt);
+      assert(r >= prev - 1e-12, `refraction fell going down past ${alt} deg`);
+      prev = r;
+    }
+    const atLimit = refractionFromTrueDeg(MONOTONIC_LIMIT.trueDeg);
+    approx(refractionFromTrueDeg(-6), atLimit, 1e-12, 'held at the clamp below the limit');
+    note('maximum modelled refraction', `${(atLimit * 60).toFixed(2)} arcmin (standard air)`);
+
+    let prevB = 0;
+    for (let alt = 60; alt >= -6; alt -= 0.25) {
+      const r = refractionFromApparentDeg(alt);
+      assert(r >= prevB - 1e-12, `Bennett fell going down past ${alt} deg`);
+      prevB = r;
+    }
   });
 
   test('a x4 mirage lifts the Sun by about two degrees', () => {

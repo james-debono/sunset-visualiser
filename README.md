@@ -37,7 +37,7 @@ In the page's browser console, `sunset.globe.sample(16.5)` and `sunset.flat.samp
 - **Both distance effects on the globe.** Earth's rotation carries the observer 4,510 km further from the Sun over the window, but in September the orbit brings Earth 5,244 km closer. The net result is quoted, not just the convenient half.
 - **The flat model at its strongest.** The Sun gets the correct starting size and elevation for free, moving in a straight line at the measured speed of the subsolar point. A second mode places it above the real subsolar point instead, and the inconsistency each mode carries is shown on screen.
 - **Lens distortion.** A wide lens stretches objects near the edge of frame by about 17%. The main view reproduces this, and the loupe is a separate camera aimed at the Sun so distortion can't masquerade as a size change.
-- **Refraction.** Off by default because it only affects the vertical axis, but adjustable from hot-day to extreme-mirage conditions for both models. However strong it gets, it squashes the disc's height and leaves its width untouched, which is why it cannot rescue the flat model.
+- **Refraction.** Standard air by default, adjustable from hot-day to extreme-mirage conditions, and applied to both models equally. However strong it gets, it squashes the disc's height and leaves its width untouched, which is why it cannot rescue the flat model. Where the standard formulae stop being monotonic (below about −1.9°) refraction is held at its maximum modelled value rather than followed into nonsense.
 - **Decorative versus physical.** Sky colours are decorative, and the docs say so. Positions, sizes, angles and relative brightness are computed.
 
 ## Run locally

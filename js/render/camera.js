@@ -204,22 +204,34 @@ export function drawCamera(stage, f) {
   const W = stage.width, H = stage.height;
   if (W < 20 || H < 20) return;
 
-  const pitch = pitchForHorizonFractionDeg(f.focalMm, f.horizonFraction);
-  const cam = { basis: cameraBasis(f.yawDeg, pitch), fPx: focalPx(f.focalMm, H) };
-  const cx = W / 2, cy = H / 2;
-  const vfov = verticalFovDeg(f.focalMm);
-  const halfH = Math.min(85, Math.atan((W / 2) / cam.fPx) * 180 / Math.PI + 2);
+  // Layout. Given the room, the loupe becomes a full-height panel beside the
+  // frame rather than a small inset on top of it: the disc is what the page is
+  // about, so it gets real estate. On a narrow pane there is not enough width
+  // for both, and it falls back to an inset in the corner.
+  const sideBySide = W - H >= 260;
+  const loupeW = sideBySide ? Math.round(Math.min(H, W * 0.45)) : 0;
+  const main = { x: 0, y: 0, w: W - loupeW, h: H };
 
-  // Sky
-  paintSky(ctx, 0, 0, W, H, cam, cx, cy, f.yawDeg, f.sunAltDeg,
+  const pitch = pitchForHorizonFractionDeg(f.focalMm, f.horizonFraction);
+  const cam = { basis: cameraBasis(f.yawDeg, pitch), fPx: focalPx(f.focalMm, main.h) };
+  const cx = main.x + main.w / 2, cy = main.y + main.h / 2;
+  const vfov = verticalFovDeg(f.focalMm);
+  const halfH = Math.min(85, Math.atan((main.w / 2) / cam.fPx) * 180 / Math.PI + 2);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(main.x, main.y, main.w, main.h);
+  ctx.clip();
+
+  paintSky(ctx, main.x, main.y, main.w, main.h, cam, cx, cy, f.yawDeg, f.sunAltDeg,
     pitch - vfov / 2 - 1, pitch + vfov / 2 + 1);
 
   // Sun and its glow. Drawn before the sea, so the horizon occludes it.
   const sunCentre = project(f.sunAltDeg, f.sunAzDeg, cam);
-  const disc = discPath(cam, cx, cy, f.sunAltDeg, f.sunAzDeg, f.sunHRadiusDeg, f.sunVRadiusDeg);
   if (sunCentre) {
     const sx = cx + sunCentre.x, sy = cy - sunCentre.y;
-    paintGlow(ctx, sx, sy, H, f.sunAltDeg, f.fluxRatio);
+    paintGlow(ctx, sx, sy, main.h, f.sunAltDeg, f.fluxRatio);
+    const disc = discPath(cam, cx, cy, f.sunAltDeg, f.sunAzDeg, f.sunHRadiusDeg, f.sunVRadiusDeg);
     if (disc) {
       tracePolygon(ctx, disc);
       ctx.fillStyle = rgba(sunRamp(f.sunAltDeg)[0]);
@@ -227,11 +239,10 @@ export function drawCamera(stage, f) {
     }
   }
 
-  // Sea
   const horizonPts = altitudeLine(cam, cx, cy, f.horizonAltDeg, f.yawDeg, halfH);
-  if (horizonPts.length > 1) paintSea(ctx, horizonPts, 0, 0, W, H, f.sunAltDeg);
+  if (horizonPts.length > 1) paintSea(ctx, horizonPts, main.x, main.y, main.w, main.h, f.sunAltDeg);
 
-  // Loupe footprint on the main frame.
+  // Outline of what the loupe is showing.
   const loupeVfov = verticalFovDeg(f.loupeMm);
   if (sunCentre) {
     const half = cam.fPx * Math.tan((loupeVfov / 2) * Math.PI / 180);
@@ -239,14 +250,10 @@ export function drawCamera(stage, f) {
     if (half > 3) {
       ctx.strokeStyle = 'rgba(255,255,255,0.55)';
       ctx.lineWidth = 1;
-      ctx.strokeRect(Math.round(sx - half) + 0.5, Math.round(sy - half) + 0.5, Math.round(half * 2), Math.round(half * 2));
+      ctx.strokeRect(Math.round(sx - half) + 0.5, Math.round(sy - half) + 0.5,
+        Math.round(half * 2), Math.round(half * 2));
     }
   }
-
-  // Loupe
-  const S = Math.round(Math.max(96, Math.min(230, Math.min(W * 0.34, H * 0.62))));
-  const lx = W - S - 10, ly = 10;
-  drawLoupe(ctx, lx, ly, S, f);
 
   // Elevation scale down the left edge, projected through the same lens.
   ctx.font = font(10);
@@ -257,7 +264,7 @@ export function drawCamera(stage, f) {
     const p = project(e, f.yawDeg, cam);
     if (!p) continue;
     const y = cy - p.y;
-    if (y < 8 || y > H - 6) continue;
+    if (y < 8 || y > main.h - 6) continue;
     ctx.strokeStyle = 'rgba(255,255,255,0.5)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -267,22 +274,43 @@ export function drawCamera(stage, f) {
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
     ctx.fillText(`${e}°`, 9, y);
   }
+
+  ctx.restore();
+
+  if (sideBySide) {
+    drawLoupe(ctx, { x: main.w, y: 0, w: loupeW, h: H }, f, { radius: 0 });
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(Math.round(main.w) + 0.5, 0);
+    ctx.lineTo(Math.round(main.w) + 0.5, H);
+    ctx.stroke();
+  } else {
+    const S = Math.round(Math.max(96, Math.min(230, Math.min(W * 0.34, H * 0.62))));
+    drawLoupe(ctx, { x: W - S - 10, y: 10, w: S, h: S }, f, { radius: 8 });
+  }
 }
 
-function drawLoupe(ctx, x, y, S, f) {
-  const cam = { basis: cameraBasis(f.sunAzDeg, f.sunAltDeg), fPx: focalPx(f.loupeMm, S) };
-  const cx = x + S / 2, cy = y + S / 2;
+/**
+ * The loupe: a long lens aimed straight at the Sun, filling the given rect.
+ * Its focal length refers to the rect's height, the same convention the main
+ * view uses, so a non-square panel simply sees more sky left and right.
+ */
+function drawLoupe(ctx, r, f, { radius = 8 } = {}) {
+  const cam = { basis: cameraBasis(f.sunAzDeg, f.sunAltDeg), fPx: focalPx(f.loupeMm, r.h) };
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
   const vfov = verticalFovDeg(f.loupeMm);
+  const hfov = Math.atan((r.w / 2) / cam.fPx) * 180 / Math.PI;
 
   ctx.save();
-  const r = 8;
   ctx.beginPath();
-  ctx.roundRect(x, y, S, S, r);
+  if (radius > 0) ctx.roundRect(r.x, r.y, r.w, r.h, radius);
+  else ctx.rect(r.x, r.y, r.w, r.h);
   ctx.clip();
 
-  paintSky(ctx, x, y, S, S, cam, cx, cy, f.sunAzDeg, f.sunAltDeg,
+  paintSky(ctx, r.x, r.y, r.w, r.h, cam, cx, cy, f.sunAzDeg, f.sunAltDeg,
     f.sunAltDeg - vfov, f.sunAltDeg + vfov);
-  paintGlow(ctx, cx, cy, S * 0.9, f.sunAltDeg, f.fluxRatio);
+  paintGlow(ctx, cx, cy, r.h * 0.9, f.sunAltDeg, f.fluxRatio);
 
   const disc = discPath(cam, cx, cy, f.sunAltDeg, f.sunAzDeg, f.sunHRadiusDeg, f.sunVRadiusDeg);
   if (disc) {
@@ -291,13 +319,15 @@ function drawLoupe(ctx, x, y, S, f) {
     ctx.fill();
   }
 
-  const horizonPts = altitudeLine(cam, cx, cy, f.horizonAltDeg, f.sunAzDeg, vfov * 1.5);
-  if (horizonPts.some((p) => p.y < y + S + 2)) paintSea(ctx, horizonPts, x, y, S, S, f.sunAltDeg);
+  const horizonPts = altitudeLine(cam, cx, cy, f.horizonAltDeg, f.sunAzDeg, Math.max(hfov * 1.2, vfov));
+  if (horizonPts.some((p) => p.y < r.y + r.h + 2)) {
+    paintSea(ctx, horizonPts, r.x, r.y, r.w, r.h, f.sunAltDeg);
+  }
 
-  // Ghost ring: the true angular size at the start of the window.
+  // Ghost ring: the true angular size at the start of the window. Two-tone so
+  // it reads over the bright disc as well as over the sky.
   const ghost = discPath(cam, cx, cy, f.sunAltDeg, f.sunAzDeg, f.ghostRadiusDeg, f.ghostRadiusDeg);
   if (ghost) {
-    // Two-tone so it reads over the bright disc as well as over the sky.
     tracePolygon(ctx, ghost);
     ctx.lineWidth = 2.5;
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
@@ -309,54 +339,57 @@ function drawLoupe(ctx, x, y, S, f) {
     ctx.setLineDash([]);
   }
 
-  // Labels on a scrim so they read against any sky.
-  const scrim = ctx.createLinearGradient(0, y, 0, y + 22);
-  scrim.addColorStop(0, 'rgba(0,0,0,0.35)');
-  scrim.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = scrim;
-  ctx.fillRect(x, y, S, 22);
-  const scrimB = ctx.createLinearGradient(0, y + S - 26, 0, y + S);
-  scrimB.addColorStop(0, 'rgba(0,0,0,0)');
-  scrimB.addColorStop(1, 'rgba(0,0,0,0.45)');
-  ctx.fillStyle = scrimB;
-  ctx.fillRect(x, y + S - 26, S, 26);
+  // Scrims, so labels read against any sky.
+  const top = ctx.createLinearGradient(0, r.y, 0, r.y + 24);
+  top.addColorStop(0, 'rgba(0,0,0,0.38)');
+  top.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = top;
+  ctx.fillRect(r.x, r.y, r.w, 24);
+  const bottom = ctx.createLinearGradient(0, r.y + r.h - 28, 0, r.y + r.h);
+  bottom.addColorStop(0, 'rgba(0,0,0,0)');
+  bottom.addColorStop(1, 'rgba(0,0,0,0.45)');
+  ctx.fillStyle = bottom;
+  ctx.fillRect(r.x, r.y + r.h - 28, r.w, 28);
 
   ctx.fillStyle = 'rgba(255,255,255,0.92)';
   ctx.font = font(10.5, 600);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText(`${f.loupeMm} mm loupe`, x + 7, y + 6);
+  ctx.fillText(`${f.loupeMm} mm loupe`, r.x + 8, r.y + 7);
 
   // Scale bar
   const arc = niceArc(vfov * 0.2);
   const len = cam.fPx * Math.tan(arc * Math.PI / 180);
-  const by = y + S - 9;
+  const by = r.y + r.h - 10;
   ctx.strokeStyle = 'rgba(255,255,255,0.9)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(x + 8, by - 3); ctx.lineTo(x + 8, by);
-  ctx.lineTo(x + 8 + len, by); ctx.lineTo(x + 8 + len, by - 3);
+  ctx.moveTo(r.x + 9, by - 3); ctx.lineTo(r.x + 9, by);
+  ctx.lineTo(r.x + 9 + len, by); ctx.lineTo(r.x + 9 + len, by - 3);
   ctx.stroke();
   ctx.font = font(10);
   ctx.textBaseline = 'bottom';
-  ctx.fillText(arcLabel(arc), x + 8 + len + 5, by + 2);
+  ctx.fillText(arcLabel(arc), r.x + 9 + len + 5, by + 2);
 
-  // Ghost key
+  // Ghost key. Shortened when the loupe is a small inset rather than a panel.
+  const key = r.w < 200 ? f.ghostLabel.replace('size at ', '') : f.ghostLabel;
   ctx.textAlign = 'right';
-  ctx.fillText(f.ghostLabel, x + S - 7, by + 2);
-  const kw = ctx.measureText(f.ghostLabel).width;
+  ctx.fillText(key, r.x + r.w - 8, by + 2);
+  const kw = ctx.measureText(key).width;
   ctx.setLineDash([3, 2]);
   ctx.beginPath();
-  ctx.moveTo(x + S - 7 - kw - 18, by - 4);
-  ctx.lineTo(x + S - 7 - kw - 5, by - 4);
+  ctx.moveTo(r.x + r.w - 8 - kw - 19, by - 4);
+  ctx.lineTo(r.x + r.w - 8 - kw - 6, by - 4);
   ctx.stroke();
   ctx.setLineDash([]);
 
   ctx.restore();
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.roundRect(x + 0.5, y + 0.5, S - 1, S - 1, r);
-  ctx.stroke();
+  if (radius > 0) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1, radius);
+    ctx.stroke();
+  }
 }
