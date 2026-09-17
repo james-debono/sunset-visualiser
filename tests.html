@@ -57,17 +57,24 @@
     font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   a { color: inherit; }
+  .backbtn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 6px 14px 6px 11px; margin-bottom: 18px;
+    border-radius: 999px; border: 1px solid var(--rule); background: var(--card);
+    color: var(--fg); text-decoration: none; font-weight: 500; font-size: 13px;
+  }
+  .backbtn:hover { border-color: var(--muted); }
 </style>
 </head>
 <body>
 <main>
+  <a class="backbtn" href="index.html" data-back>&larr; Back to the visualiser</a>
   <h1>Verification suite</h1>
   <p class="sub">
     Every number this page relies on, checked against published values, closed-form
     identities, or a second independent derivation. Source:
     <a href="tests/physics.test.js">tests/physics.test.js</a> &middot;
-    <a href="maths.html">the maths</a> &middot;
-    <a href="index.html">back to the visualiser</a>
+    <a href="maths.html">the maths</a>
   </p>
   <div id="out">Running&hellip;</div>
 </main>
@@ -115,6 +122,21 @@
     document.getElementById('out').innerHTML =
       `<div class="banner bad">Suite could not run</div><pre class="err">${esc(err.stack || err)}</pre>`;
     window.__TEST_SUMMARY__ = { passed: 0, failed: -1, total: 0, error: String(err) };
+  }
+</script>
+<script>
+  // Going "back" is preferable to a fresh load: the visualiser keeps its whole
+  // state in the URL, and the history entry has it. Only do that when we
+  // actually arrived from there, so the button still works on a direct visit.
+  for (const a of document.querySelectorAll('[data-back]')) {
+    a.addEventListener('click', (e) => {
+      if (history.length < 2 || !document.referrer) return;
+      const from = new URL(document.referrer, location.href);
+      if (from.origin !== location.origin) return;
+      if (!/(^|\/)(index\.html)?$/.test(from.pathname)) return;
+      e.preventDefault();
+      history.back();
+    });
   }
 </script>
 </body>

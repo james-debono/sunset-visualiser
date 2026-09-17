@@ -15,7 +15,7 @@ The flat model's size change is **136,000 times** the globe's. Real sunsets look
 
 ## Four views
 
-- **Globe · camera.** What a 24 mm lens sees, with the horizon near the bottom of the frame. A loupe aimed at the Sun shows the disc against a dashed ring at its starting size.
+- **Globe · camera.** What a 24 mm lens sees, with the horizon near the bottom of the frame. Beside it, a 1600 mm loupe aimed at the Sun shows the disc against a dashed ring at its starting size.
 - **Globe · side.** The Sun stays put and the Earth turns. The observer's horizon tips up past the Sun, and the angle between them is drawn exactly.
 - **Flat · camera.** The same lens and framing, if the Sun were a small object moving away above a plane.
 - **Flat · side.** Drawn to scale, so the angles are true. You can set the Sun's height; its size is derived so that it starts at the real angular diameter.
@@ -76,7 +76,11 @@ tests/
 
 ## Default scenario
 
-An observer on the equator at the September 2026 equinox, eye height 1.7 m, from 15:00 to sunset at 18:00 apparent solar time. This is the cleanest case, since the Sun sets straight down at exactly 15° per hour. It is also the case where the subsolar point moves fastest, which favours the flat model.
+An observer on the equator at the September 2026 equinox, eye height 1.7 m, from 15:00 to sunset at 18:00 apparent solar time, with the timeline running 15 minutes past. This is the cleanest case, since the Sun sets straight down at exactly 15° per hour. It is also the case where the subsolar point moves fastest, which favours the flat model.
+
+The picker moves the observer anywhere up to 80° of latitude. Latitude changes the numbers but not the conclusion: at 80°, where the Sun only creeps down a shallow slope, the flat Sun still loses more than a quarter of its width while the real one changes by 0.06 arcseconds.
+
+Every setting lives in the URL, so a particular moment is a link you can send someone.
 
 ## Licence
 

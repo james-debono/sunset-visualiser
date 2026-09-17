@@ -43,6 +43,7 @@ import {
   verticalFovDeg, focalForVerticalFovMm, focalPx, cameraBasis, project,
   pitchForHorizonFractionDeg, defaultFraming, discOutline, projectVector,
 } from '../js/physics/optics.js';
+import { orthographic, inverseOrthographic } from '../js/physics/geo.js';
 
 // -----------------------------------------------------------------------------
 
@@ -673,5 +674,91 @@ suite('Refraction settings', () => {
     note('dip at x2', `${(two * 60).toFixed(2)} arcmin`);
     lessThan(two, one, 'more refraction means less dip');
     greaterThan(two, 0, 'but the horizon does not rise above the horizontal here');
+  });
+});
+
+suite('Globe projection (location picker)', () => {
+  test('projecting and un-projecting a point returns the same place', () => {
+    const views = [[0, 0], [-37.8, 144.96], [64, -22], [80, 170]];
+    const points = [[0, 0], [51.5, -0.13], [-33.87, 151.21], [-0.18, -78.47], [64.13, -21.9], [89, 45]];
+    for (const [lat0, lon0] of views) {
+      for (const [lat, lon] of points) {
+        const p = orthographic(lat, lon, lat0, lon0);
+        if (!p.visible) continue;
+        const back = inverseOrthographic(p.x, p.y, lat0, lon0);
+        approx(back.latDeg, lat, 1e-9, `latitude from view ${lat0},${lon0}`);
+        // Longitude is undefined at the poles, where every meridian meets.
+        if (Math.abs(lat) < 89.999) {
+          const wrapped = ((back.lonDeg - lon + 540) % 360) - 180;   // to (-180, 180]
+          approx(wrapped, 0, 1e-7, 'longitude');
+        }
+      }
+    }
+  });
+
+  test('the point under the viewer is at the centre, and the far side is hidden', () => {
+    const p = orthographic(-37.8, 144.96, -37.8, 144.96);
+    approx(p.x, 0, 1e-12); approx(p.y, 0, 1e-12);
+    assert(p.visible, 'the point being looked at is visible');
+    const anti = orthographic(37.8, 144.96 - 180, -37.8, 144.96);
+    assert(!anti.visible, 'its antipode is not');
+  });
+
+  test('a click outside the disc is rejected rather than snapped to the edge', () => {
+    assert(inverseOrthographic(1.2, 0, 0, 0) === null);
+    assert(inverseOrthographic(0.8, 0.8, 0, 0) === null, 'outside by the diagonal');
+    assert(inverseOrthographic(0.7, 0.7, 0, 0) !== null, 'just inside');
+  });
+
+  test('north is up: increasing latitude moves up the screen', () => {
+    const a = orthographic(10, 0, 0, 0), b = orthographic(20, 0, 0, 0);
+    greaterThan(b.y, a.y, 'higher latitude is higher on screen');
+    const e = orthographic(0, 10, 0, 0);
+    greaterThan(e.x, 0, 'east is to the right');
+  });
+});
+
+suite('Framing away from the equator', () => {
+  test('a Sun that swings in azimuth forces a wider lens', () => {
+    // Vertical span alone would allow a long lens at high latitude, but the
+    // Sun also tracks sideways, and the frame has to hold that too.
+    const tall = defaultFraming(8, 0.02, undefined, 0);
+    const swinging = defaultFraming(8, 0.02, undefined, 40);
+    note('8 deg vertical, no swing', `${tall.focalMm} mm`);
+    note('8 deg vertical, 40 deg swing', `${swinging.focalMm} mm`);
+    lessThan(swinging.focalMm, tall.focalMm, 'the swing wins');
+    lessThan(swinging.maxFocalMm, 18 / Math.tan(20 * Math.PI / 180) + 1e-9, 'bounded by width');
+  });
+
+  test('at the equator the Sun does not swing, so the lens is unchanged', () => {
+    const a = defaultFraming(45.27, 0.02, undefined, 0.53);
+    assert(a.focalMm === 24, `expected 24 mm, got ${a.focalMm}`);
+    approx(a.horizonFraction, 0.0831, 0.001, 'horizon still 8.3% up the frame');
+  });
+
+  test('the horizon stays near the bottom when the swing sets the lens', () => {
+    // High latitude: a low Sun but a wide sideways swing. Centring the content
+    // vertically would put the horizon 40% up the frame and fill the rest
+    // with sea.
+    const f = defaultFraming(8, 0.02, undefined, 45);
+    note('chosen lens', `${f.focalMm} mm`);
+    note('horizon from bottom', `${(f.horizonFraction * 100).toFixed(1)} %`);
+    lessThan(f.horizonFraction, 0.125, 'horizon kept low in frame');
+    greaterThan(f.horizonFraction, 0, 'but some ground is still visible');
+  });
+
+  test('capping the horizon never pushes the Sun out of frame', () => {
+    // Raising the pitch to drop the horizon drops the Sun too. Check the top
+    // of the Sun, and the horizon, are both still on screen across the range
+    // of latitudes the picker allows.
+    for (const [span, az] of [[45.27, 0.53], [34, 32], [26, 39], [8, 45], [4, 50]]) {
+      const fr = defaultFraming(span, 0.02, undefined, az);
+      const pitch = pitchForHorizonFractionDeg(fr.focalMm, fr.horizonFraction);
+      const cam = { basis: cameraBasis(270, pitch), fPx: focalPx(fr.focalMm, 1000) };
+      const top = 500 - project(span, 270, cam).y;
+      between(top, 0, 1000, `span ${span} deg, swing ${az} deg: top of Sun on screen`);
+      const horizon = 500 - project(0, 270, cam).y;
+      between(horizon, 0, 1000, `span ${span} deg: horizon on screen`);
+    }
   });
 });

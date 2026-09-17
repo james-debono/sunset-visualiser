@@ -129,24 +129,48 @@ export function pitchForHorizonFractionDeg(focalMm, fractionFromBottom) {
 /**
  * The narrowest common focal length whose frame holds everything between the
  * horizon and the top of the Sun at its highest, with `margin` of the frame
- * height left clear at top and bottom.
+ * left clear at every edge.
  *
  * With the content centred vertically (pitch = span / 2), each extreme sits
  * tan(span/2) / tan(vfov/2) of the half-height from centre. Requiring that to
  * be at most (1 - 2 margin) gives the longest focal length that fits.
  *
+ * Away from the equator the Sun also swings in azimuth as it sets, so the
+ * frame has to be wide enough for that too. The horizontal limit is measured
+ * against a 3:2 frame; real panes are wider, so this is the conservative one
+ * to use, and the vertical framing is unaffected.
+ *
+ * @param {number} spanDeg      vertical span, horizon to the top of the Sun
+ * @param {number} [margin]     fraction of the frame kept clear at each edge
+ * @param {number[]} [lengths]  focal lengths to choose between
+ * @param {number} [azSpanDeg]  horizontal span the Sun covers, 0 if it does not move
+ * @param {number} [maxHorizonFraction]  keeps the horizon near the bottom of frame
  * @returns {{focalMm:number, horizonFraction:number, maxFocalMm:number}}
  */
-export function defaultFraming(spanDeg, margin = 0.02, lengths = COMMON_FOCAL_LENGTHS_MM) {
-  const maxFocalMm = (SENSOR_HEIGHT_MM / 2) * (1 - 2 * margin) / Math.tan(spanDeg / 2 * DEG);
+export function defaultFraming(
+  spanDeg, margin = 0.02, lengths = COMMON_FOCAL_LENGTHS_MM, azSpanDeg = 0,
+  maxHorizonFraction = 0.12,
+) {
+  const clear = 1 - 2 * margin;
+  const byHeight = (SENSOR_HEIGHT_MM / 2) * clear / Math.tan(spanDeg / 2 * DEG);
+  const byWidth = azSpanDeg > 0
+    ? (SENSOR_WIDTH_MM / 2) * clear / Math.tan(azSpanDeg / 2 * DEG)
+    : Infinity;
+  const maxFocalMm = Math.min(byHeight, byWidth);
   const fitting = lengths.filter((f) => f <= maxFocalMm);
   const focalMm = fitting.length ? fitting[fitting.length - 1] : lengths[0];
 
   // Where the horizon lands at that focal length, as a fraction from the
   // bottom. This fraction is then held fixed as the user changes focal length,
   // so "horizon near the bottom of frame" stays true at every zoom.
+  //
+  // When the lens is set by the Sun's sideways swing rather than by its height
+  // -- which happens away from the equator, where the Sun sets at an angle --
+  // there is vertical slack left over. Centring the content would float the
+  // horizon up the frame and fill the bottom half with sea, so the horizon is
+  // capped near the bottom and the slack is given to the sky instead.
   const ratio = Math.tan(spanDeg / 2 * DEG) / (SENSOR_HEIGHT_MM / 2 / focalMm);
-  const horizonFraction = (1 - ratio) / 2;
+  const horizonFraction = Math.min((1 - ratio) / 2, maxHorizonFraction);
 
   return { focalMm, horizonFraction, maxFocalMm };
 }

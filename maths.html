@@ -20,7 +20,14 @@
   .doc-head { border-bottom: 1px solid var(--hairline); padding-bottom: 18px; margin-bottom: 8px; }
   .doc-head h1 { font-size: 26px; font-weight: 650; letter-spacing: -0.015em; margin: 0 0 6px; }
   .doc-head .lede { color: var(--ink-2); margin: 0; max-width: 62ch; }
-  .doc-head nav { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; font-size: 13px; }
+  .doc-head nav { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 14px; font-size: 13px; }
+  .backbtn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 6px 14px 6px 11px;
+    border-radius: 999px; border: 1px solid var(--hairline); background: var(--surface);
+    color: var(--ink); text-decoration: none; font-weight: 500;
+  }
+  .backbtn:hover { border-color: var(--axis); }
 
   .doc h2 {
     font-size: 19px;
@@ -112,7 +119,7 @@
     <h1>The maths behind the Sunset Visualiser</h1>
     <p class="lede">Every formula the page uses, the function that implements it, and the numbers it produces. Each figure quoted here comes from running that code, not from a textbook or an estimate.</p>
     <nav>
-      <a href="index.html">&larr; Back to the visualiser</a>
+      <a class="backbtn" href="index.html" data-back>&larr; Back to the visualiser</a>
       <a href="tests.html">Verification tests</a>
     </nav>
   </header>
@@ -153,7 +160,8 @@
     <li>Distances are in km, times in hours, and angles in degrees unless stated.</li>
     <li><strong>Time is apparent solar time</strong>: the Sun is due south or north at 12:00. The hour angle is <i>H</i> = 15&deg; &times; (<i>t</i> &minus; 12).</li>
     <li><strong>Earth is a sphere</strong> of radius equal to the equatorial radius. In the default scenario the subsolar point runs along the equator, where that radius is exact. Oblateness is covered in <a href="#simplifications">&sect;10</a>.</li>
-    <li><strong>Default scenario</strong>: an observer on the equator (0&deg;, 0&deg;), eye height 1.7 m, on 23 September 2026, the day of the September equinox. The window runs from three hours before geometric sunset (15:00) to sunset (18:00).</li>
+    <li><strong>Default scenario</strong>: an observer on the equator (0&deg;, 0&deg;), eye height 1.7 m, on 23 September 2026, the day of the September equinox. The window runs from three hours before geometric sunset (15:00) to sunset (18:00), and the timeline carries on 15 minutes past it so the disc can be seen to go.</li>
+    <li><strong>The location picker</strong> moves the observer anywhere up to 80&deg; of latitude; the date stays at the equinox. Every figure below is for the default equatorial case unless it says otherwise. Latitude changes the numbers but not the conclusion (&sect;6.7).</li>
   </ul>
 
   <!-- 2 ------------------------------------------------------------------ -->
@@ -382,6 +390,22 @@
 
   <p>At those heights the flat model hides the shrink only by failing to set at all.</p>
 
+  <h3>6.7 What latitude changes</h3>
+
+  <p>The equator is where the flat model fares worst: the Sun starts highest, and so nearest, and then recedes furthest in relative terms. Moving away from it softens the contrast without coming close to rescuing the model.</p>
+
+  <table>
+    <thead><tr><th>Observer</th><th class="num">Sun at 15:00</th><th class="num">Globe change</th><th class="num">Flat Sun ends at</th><th class="num">Ratio</th></tr></thead>
+    <tbody>
+      <tr><td>Equator</td><td class="num">45.0&deg;</td><td class="num">+0.0094&Prime;</td><td class="num">33.4% of its width</td><td class="num">136,150&times;</td></tr>
+      <tr><td>Melbourne, 37.8&deg;S</td><td class="num">34.0&deg;</td><td class="num">+0.0214&Prime;</td><td class="num">38.0%</td><td class="num">55,374&times;</td></tr>
+      <tr><td>London, 51.5&deg;N</td><td class="num">26.0&deg;</td><td class="num">+0.0311&Prime;</td><td class="num">43.4%</td><td class="num">34,876&times;</td></tr>
+      <tr><td>80&deg;N</td><td class="num">6.9&deg;</td><td class="num">+0.0568&Prime;</td><td class="num">72.7%</td><td class="num">9,169&times;</td></tr>
+    </tbody>
+  </table>
+
+  <p>Even at 80&deg;, where the Sun only creeps down a shallow slope, the flat model still loses more than a quarter of the Sun&rsquo;s width while the real one changes by six hundredths of an arcsecond. The globe figures grow with latitude because the Sun spends the window nearer the horizon, where the observer&rsquo;s rotation carries them away from it most directly. They stay thousands of times too small to see.</p>
+
   <!-- 7 ------------------------------------------------------------------ -->
   <h2 id="refraction"><span class="n">7</span>Refraction</h2>
   <span class="impl">refraction.js</span>
@@ -443,7 +467,12 @@
     </tbody>
   </table>
 
-  <p>Below those altitudes the code <strong>holds refraction at its maximum modelled value</strong> rather than following the formula down. Real refraction keeps growing with depth, so this understates both the lift and the flattening &mdash; the conservative direction, and it never produces the nonsense. The test suite walks both formulae from 60&deg; down to &minus;6&deg; and requires that refraction never decreases, and checks the disc is never widened at any altitude down to 4&deg; below the horizon under every preset.</p>
+  <p>Below those altitudes the code <strong>holds refraction at its maximum modelled value</strong> rather than following the formula down. The test suite walks both formulae from 60&deg; down to &minus;6&deg; and requires that refraction never decreases, and checks the disc is never widened at any altitude down to 4&deg; below the horizon under every preset.</p>
+
+  <div class="callout">
+    <p><strong>Be clear about what the clamp is.</strong> It is a limit of the formulae, not a description of the air. Down there real refraction keeps growing and keeps squashing the disc &mdash; that is what produces the flattened, stacked and omega-shaped Suns in mirage photographs. The clamped model instead shows a Sun that is lifted but no longer squashed at all, and that is simply <em>wrong</em>. It is wrong in the safe direction: it understates refraction rather than inventing a stretched Sun.</p>
+    <p>It only bites below &minus;1.9&deg;. In standard air the Sun has long since set by then, so the default view never reaches it. It shows up only under the &times;2 and &times;4 presets, which are already flagged as beyond what the formulae model.</p>
+  </div>
 
   <p>This matters in practice because the timeline runs to 4&deg; below the horizon, so that the disc can be seen to set even under the &times;4 preset, which lifts it by nearly 3&deg;.</p>
 
@@ -481,11 +510,17 @@
 
   <p>The longest common lens that fits is therefore <strong>24 mm</strong>. The horizon then sits 8.31% of the frame height above the bottom, and that fraction is held fixed as the lens is changed.</p>
 
+  <p><strong>Away from the equator</strong> the Sun sets at a slant, so it tracks sideways as it goes: about 32&deg; of bearing across the window at Melbourne, 38&deg; at London. The frame has to hold that too, so the lens is the shorter of the two limits, measured against a 3:2 frame (real panes are wider, so this is the conservative test), and the camera faces the Sun&rsquo;s mean bearing rather than its bearing at sunset.</p>
+
+  <p>That leaves vertical slack, because a low Sun needs little height. Centring the content would then float the horizon up the middle of the frame and fill the bottom half with sea, so the horizon is capped at 12% of the frame height and the slack goes to the sky instead. The suite checks that the Sun and the horizon are both still inside the frame across the range of latitudes the picker allows.</p>
+
   <h3>8.4 Why the loupe is a separate camera</h3>
 
   <p>A rectilinear lens stretches objects off-axis. At 24 mm the Sun at 45&deg; is 22.6&deg; off-axis, where a disc is drawn <strong>16.9% taller</strong> than on-axis.</p>
 
   <p>That is correct lens behaviour, and the main view reproduces it. But magnifying that frame would make the Sun appear to change size as it crossed it &mdash; exactly the effect under test. So the loupe is a second camera <strong>aimed straight at the Sun</strong>, where the disc is undistorted. The suite verifies that a disc viewed head-on spans exactly 2<i>f</i> tan <i>r</i> in both axes, at any altitude.</p>
+
+  <p>It defaults to 1600 mm, a 0.86&deg; field, in which the Sun fills about 62% of the height. Where the pane is wide enough, the loupe is a full-height panel beside the frame rather than an inset on top of it.</p>
 
   <h3>8.5 Glow brightness</h3>
 
@@ -591,5 +626,20 @@
   </footer>
 
 </article>
+<script>
+  // Going "back" is preferable to a fresh load: the visualiser keeps its whole
+  // state in the URL, and the history entry has it. Only do that when we
+  // actually arrived from there, so the button still works on a direct visit.
+  for (const a of document.querySelectorAll('[data-back]')) {
+    a.addEventListener('click', (e) => {
+      if (history.length < 2 || !document.referrer) return;
+      const from = new URL(document.referrer, location.href);
+      if (from.origin !== location.origin) return;
+      if (!/(^|\/)(index\.html)?$/.test(from.pathname)) return;
+      e.preventDefault();
+      history.back();
+    });
+  }
+</script>
 </body>
 </html>
