@@ -9,7 +9,7 @@
  * Earth is modelled as a sphere. For the default scenario (observer on the
  * equator at an equinox) the subsolar point runs along the equator, so the
  * equatorial radius is the physically correct value there. Oblateness (0.34%)
- * is neglected; see docs/MATH.md for why that cannot affect the conclusion.
+ * is neglected; see maths.html for why that cannot affect the conclusion.
  */
 
 import {

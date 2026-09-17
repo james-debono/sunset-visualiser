@@ -13,7 +13,9 @@ import {
 } from './physics/solar.js';
 import { buildScenario, summarise } from './physics/scenario.js';
 import { makeFlatModel, minimumHeightForImperceptibleShrink } from './physics/flat.js';
-import { apparentDiscDeg, apparentHorizonDipDeg } from './physics/refraction.js';
+import {
+  apparentDiscDeg, apparentHorizonDipDeg, refractionFromTrueDeg, REFRACTION_PRESETS,
+} from './physics/refraction.js';
 import {
   COMMON_FOCAL_LENGTHS_MM, defaultFraming, verticalFovDeg, pitchForHorizonFractionDeg,
 } from './physics/optics.js';
@@ -61,7 +63,8 @@ const state = {
   playing: false,
   speed: 600,
   units: 'metric',
-  refraction: false,
+  /** One of REFRACTION_PRESETS. 'off' means pure geometry. */
+  refraction: REFRACTION_PRESETS[0],
   focalMm: FRAMING.focalMm,
   loupeMm: 800,
   heightKm: cfg.flatHeightKm,
@@ -186,6 +189,7 @@ const dist = (km, sig, signed = false) => formatDistance(km, state.units, sig, s
 /** Space a diagram must leave for its readout -- none when the readout sits below it. */
 const readoutReserve = (el) => (getComputedStyle(el).position === 'absolute' ? el.offsetWidth + 20 : 0);
 const pct = (x, d) => `${(x * 100).toFixed(d)} %`;
+const arcmin = (degrees, d = 2) => `${(degrees * 60).toFixed(d)}′`;
 const deg = (x, d = 2) => {
   const text = Math.abs(x).toFixed(d);
   const zero = Number(text) === 0;
@@ -217,13 +221,35 @@ function relativeToSunset(t) {
 // Render
 // -----------------------------------------------------------------------------
 
-/** Apparent disc for a true altitude, with or without refraction. */
+/** Apparent disc for a true altitude, under the selected refraction preset. */
 function apparent(trueAltDeg, diameterDeg) {
-  if (!state.refraction) {
-    return { alt: trueAltDeg, hR: diameterDeg / 2, vR: diameterDeg / 2 };
+  if (!state.refraction.on) {
+    return { alt: trueAltDeg, hR: diameterDeg / 2, vR: diameterDeg / 2, lift: 0 };
   }
-  const d = apparentDiscDeg(trueAltDeg, diameterDeg);
-  return { alt: d.apparentCentreAltDeg, hR: d.horizontalDeg / 2, vR: d.verticalDeg / 2 };
+  const c = state.refraction.conditions;
+  const d = apparentDiscDeg(trueAltDeg, diameterDeg, c);
+  return {
+    alt: d.apparentCentreAltDeg,
+    hR: d.horizontalDeg / 2,
+    vR: d.verticalDeg / 2,
+    lift: d.apparentCentreAltDeg - trueAltDeg,
+  };
+}
+
+/**
+ * Readout rows shared by both camera panes. With refraction on it also shows
+ * the apparent width and height, which is where the point lives: however
+ * strong refraction gets, it squashes the height and never touches the width.
+ */
+function cameraRows(sample, app, startDiameterDeg, sizeDecimals) {
+  const rows = [['Angular diameter', formatAngularSize(sample.angularDiameterDeg), true]];
+  if (state.refraction.on) {
+    rows.push(['Apparent W × H', `${arcmin(app.hR * 2)} × ${arcmin(app.vR * 2)}`]);
+    rows.push(['Refraction lift', `+${arcmin(app.lift)}`]);
+  }
+  rows.push(['Size vs start', pct(sample.angularDiameterDeg / startDiameterDeg, sizeDecimals)]);
+  rows.push([state.refraction.on ? 'Altitude (apparent)' : 'Altitude', deg(app.alt, 2)]);
+  return rows;
 }
 
 function render() {
@@ -239,7 +265,9 @@ function render() {
 
   // --- Globe camera
   const gApp = apparent(g.altitudeDeg, g.angularDiameterDeg);
-  const globeHorizon = -(state.refraction ? apparentHorizonDipDeg(cfg.eyeHeightM) : g.horizonDipDeg);
+  const globeHorizon = -(state.refraction.on
+    ? apparentHorizonDipDeg(cfg.eyeHeightM, state.refraction.conditions)
+    : g.horizonDipDeg);
   drawCamera(stages.globeCamera, {
     focalMm: state.focalMm, horizonFraction: FRAMING.horizonFraction, yawDeg: CAMERA_YAW,
     sunAltDeg: gApp.alt, sunAzDeg: g.azimuthDeg, sunHRadiusDeg: gApp.hR, sunVRadiusDeg: gApp.vR,
@@ -262,16 +290,9 @@ function render() {
     loupeMm: state.loupeMm, ghostLabel,
   });
 
-  const altNote = state.refraction ? 'Altitude (apparent)' : 'Altitude';
-  fillReadout($('globe-camera-readout'), [
-    ['Angular diameter', formatAngularSize(g.angularDiameterDeg), true],
-    ['Size vs start', pct(g.angularDiameterDeg / START.angularDiameterDeg, 4)],
-    [altNote, deg(gApp.alt, 2)],
-  ]);
+  fillReadout($('globe-camera-readout'), cameraRows(g, gApp, START.angularDiameterDeg, 4));
   fillReadout($('flat-camera-readout'), [
-    ['Angular diameter', formatAngularSize(f.angularDiameterDeg), true],
-    ['Size vs start', pct(f.angularDiameterDeg / f0.angularDiameterDeg, 1)],
-    [altNote, deg(fApp.alt, 2)],
+    ...cameraRows(f, fApp, f0.angularDiameterDeg, 1),
     ...(t >= TS ? [['Real Sun has set', 'this one has not', true]] : []),
   ]);
 
@@ -368,7 +389,7 @@ function renderCompare(g, f, f0, gApp, fApp) {
     ['Size vs start', pct(gRatio, 4), pct(fRatio, 1)],
     ['Changing by', signed(gRate, 4, '″/min'), signed(fRate, 2, '″/min')],
     ['Brightness vs start', pct(gRatio ** 2, 3), pct(fRatio ** 2, 1)],
-    [state.refraction ? 'Altitude (apparent)' : 'Altitude', deg(gApp.alt, 2), deg(fApp.alt, 2)],
+    [state.refraction.on ? 'Altitude (apparent)' : 'Altitude', deg(gApp.alt, 2), deg(fApp.alt, 2)],
     ['Distance to Sun', dist(g.distanceKm, 9), dist(f.distanceKm, 4)],
   ];
   body.replaceChildren();
@@ -503,8 +524,29 @@ bindSegmented($('anchor'), (v) => {
   requestRender();
 });
 
+/**
+ * Refraction presets. Each label carries the horizon refraction the code
+ * actually produces for that preset, so a label cannot drift from the maths.
+ */
+function buildRefractionOptions() {
+  const select = $('refraction');
+  select.replaceChildren();
+  for (const p of REFRACTION_PRESETS) {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = p.on
+      ? `${p.label} — ${arcmin(refractionFromTrueDeg(0, p.conditions), 0)} at horizon`
+      : p.label;
+    o.title = p.note;
+    select.appendChild(o);
+  }
+  select.value = state.refraction.id;
+  $('refraction-note').textContent = state.refraction.note;
+}
+
 $('refraction').addEventListener('change', (e) => {
-  state.refraction = e.target.checked;
+  state.refraction = REFRACTION_PRESETS.find((p) => p.id === e.target.value) ?? REFRACTION_PRESETS[0];
+  $('refraction-note').textContent = state.refraction.note;
   requestRender();
 });
 
@@ -697,6 +739,7 @@ onThemeChange(() => {
 // -----------------------------------------------------------------------------
 
 recomputeMinHeight();
+buildRefractionOptions();
 buildPresets();
 buildScrubTicks();
 syncSpeed();

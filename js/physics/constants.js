@@ -3,7 +3,7 @@
  *
  * Every value here is a published standard, not a fitted or tuned number.
  * Sources are given inline so each one can be checked independently.
- * See docs/SOURCES.md for full citations.
+ * See maths.html for full citations.
  */
 
 // --- Lengths -----------------------------------------------------------------

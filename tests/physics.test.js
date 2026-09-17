@@ -34,7 +34,7 @@ import { makeGlobeModel, observerSunDistanceKm } from '../js/physics/globe.js';
 import { makeFlatModel, minimumHeightForImperceptibleShrink } from '../js/physics/flat.js';
 import {
   refractionFromTrueDeg, refractionFromApparentDeg, apparentAltitudeDeg, apparentDiscDeg,
-  apparentHorizonDipDeg,
+  apparentHorizonDipDeg, conditionsFactor, REFRACTION_PRESETS, STANDARD_CONDITIONS,
 } from '../js/physics/refraction.js';
 import { buildScenario, summarise, DEFAULT_SCENARIO } from '../js/physics/scenario.js';
 import { formatDistance, formatSpeed, formatSolarTime } from '../js/physics/units.js';
@@ -571,5 +571,75 @@ suite('Camera optics', () => {
       approxRel(Math.max(...xs) - Math.min(...xs), expected, 1e-6, `width at altitude ${alt}`);
       approxRel(Math.max(...ys) - Math.min(...ys), expected, 1e-6, `height at altitude ${alt}`);
     }
+  });
+});
+
+suite('Refraction settings', () => {
+  test('standard conditions are the unscaled formula', () => {
+    approx(conditionsFactor(), 1, 1e-12, 'no arguments means standard');
+    approx(conditionsFactor(STANDARD_CONDITIONS), 1, 1e-12);
+  });
+
+  test('denser air refracts more, thinner air less', () => {
+    const cold = conditionsFactor({ temperatureC: -20, pressureHPa: 1020 });
+    const hot = conditionsFactor({ temperatureC: 40, pressureHPa: 1005 });
+    note('cold 1020 hPa / -20 C', `x${cold.toFixed(4)}`);
+    note('hot 1005 hPa / 40 C', `x${hot.toFixed(4)}`);
+    greaterThan(cold, 1, 'cold, high pressure');
+    lessThan(hot, 1, 'hot, low pressure');
+    // Weather alone spans only a narrow range, which is why `scale` exists.
+    between(cold / hot, 1.2, 1.5, 'full weather range, cold vs hot');
+  });
+
+  test('the anomalous-refraction multiplier scales the result exactly', () => {
+    for (const scale of [0.5, 2, 4]) {
+      approxRel(refractionFromTrueDeg(0, { scale }), refractionFromTrueDeg(0) * scale, 1e-12,
+        `scale ${scale}`);
+    }
+  });
+
+  test('every preset reports the refraction the code produces, in order', () => {
+    const on = REFRACTION_PRESETS.filter((p) => p.on);
+    const values = on.map((p) => refractionFromTrueDeg(0, p.conditions) * 60);
+    on.forEach((p, i) => note(p.label, `${values[i].toFixed(1)} arcmin at the horizon`));
+    assert(REFRACTION_PRESETS[0].on === false, 'the first preset is "off"');
+    const byId = (id) => values[on.findIndex((p) => p.id === id)];
+    lessThan(byId('hot'), byId('standard'), 'hot day vs standard');
+    greaterThan(byId('cold'), byId('standard'), 'cold day vs standard');
+    greaterThan(byId('cold-high'), byId('cold'), 'cold and high pressure vs cold');
+    greaterThan(byId('inversion'), byId('cold-high'), 'inversion vs the weather extreme');
+    greaterThan(byId('mirage'), byId('inversion'), 'mirage vs inversion');
+    approx(byId('mirage'), byId('standard') * 4, 1e-9, 'the x4 preset is exactly x4');
+  });
+
+  test('no amount of refraction widens the disc: width is exactly untouched', () => {
+    // The whole reason refraction cannot rescue the flat model. However hard it
+    // is pushed, it compresses the height and leaves the width alone.
+    const theta = 0.5311;
+    for (const p of REFRACTION_PRESETS.filter((x) => x.on)) {
+      for (const alt of [0, 1, 5, 20, 45]) {
+        const d = apparentDiscDeg(alt, theta, p.conditions);
+        approx(d.horizontalDeg, theta, 0, `${p.id} at ${alt} deg: width`);
+        lessThan(d.verticalDeg, theta, `${p.id} at ${alt} deg: height`);
+      }
+    }
+    const extreme = apparentDiscDeg(0, theta, { scale: 4 });
+    note('at x4 refraction on the horizon', `height ${(extreme.flattening * 100).toFixed(1)} % of width`);
+    lessThan(extreme.flattening, 0.6, 'a x4 disc is squashed hard');
+  });
+
+  test('a x4 mirage lifts the Sun by about two degrees', () => {
+    const lift = refractionFromTrueDeg(0, { scale: 4 });
+    note('lift at true altitude 0', `${lift.toFixed(3)} deg`);
+    between(lift, 1.8, 2.1);
+  });
+
+  test('stronger refraction lifts the sea horizon further', () => {
+    const one = apparentHorizonDipDeg(1.7);
+    const two = apparentHorizonDipDeg(1.7, { scale: 2 });
+    note('dip at standard', `${(one * 60).toFixed(2)} arcmin`);
+    note('dip at x2', `${(two * 60).toFixed(2)} arcmin`);
+    lessThan(two, one, 'more refraction means less dip');
+    greaterThan(two, 0, 'but the horizon does not rise above the horizontal here');
   });
 });

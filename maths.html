@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The maths — Sunset Visualiser</title>
+<meta name="description" content="Every formula behind the Sunset Visualiser, the function that implements it, the numbers it produces, and the sources for every constant.">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  body { background: var(--page); }
+
+  .doc {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 28px 20px 96px;
+    font-size: 14.5px;
+    line-height: 1.62;
+  }
+
+  .doc-head { border-bottom: 1px solid var(--hairline); padding-bottom: 18px; margin-bottom: 8px; }
+  .doc-head h1 { font-size: 26px; font-weight: 650; letter-spacing: -0.015em; margin: 0 0 6px; }
+  .doc-head .lede { color: var(--ink-2); margin: 0; max-width: 62ch; }
+  .doc-head nav { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; font-size: 13px; }
+
+  .doc h2 {
+    font-size: 19px;
+    font-weight: 620;
+    letter-spacing: -0.01em;
+    margin: 44px 0 4px;
+    padding-top: 18px;
+    border-top: 1px solid var(--hairline);
+  }
+  .doc h2 .n { color: var(--muted); font-weight: 500; margin-right: 8px; }
+  .doc h3 { font-size: 15px; font-weight: 620; margin: 28px 0 4px; }
+  .doc p { margin: 10px 0; max-width: 74ch; }
+  .doc ul, .doc ol { max-width: 74ch; padding-left: 22px; }
+  .doc li { margin: 5px 0; }
+  .doc strong { font-weight: 620; }
+
+  /* Where a formula's implementation lives. */
+  .impl {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--ink-2);
+    background: var(--surface-2);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    padding: 3px 8px;
+    display: inline-block;
+    margin: 4px 0 2px;
+  }
+  code {
+    font-family: var(--mono);
+    font-size: 0.9em;
+    background: var(--surface-2);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  /* Display formulae. Set in the page's own type, with italic variables. */
+  .eq {
+    margin: 14px 0;
+    padding: 13px 18px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-left: 3px solid var(--globe);
+    border-radius: 8px;
+    font-size: 16px;
+    line-height: 1.9;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .eq i, .doc p i, .doc li i, td i { font-style: italic; font-family: Georgia, "Times New Roman", serif; }
+  .eq .where { display: block; font-size: 12.5px; color: var(--muted); white-space: normal; margin-top: 6px; }
+  .eq.stack { white-space: normal; }
+  .eq .line { display: block; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 16px 0;
+    font-size: 13.5px;
+  }
+  th, td { text-align: left; padding: 7px 12px 7px 0; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  thead th { color: var(--muted); font-weight: 500; font-size: 12.5px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr:last-child td { border-bottom: 0; }
+
+  .callout {
+    margin: 18px 0;
+    padding: 12px 16px;
+    background: var(--surface-2);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    font-size: 13.5px;
+  }
+  .callout p { margin: 6px 0; }
+  .callout p:first-child { margin-top: 0; }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .toc { background: var(--surface); border: 1px solid var(--hairline); border-radius: 10px; padding: 14px 18px; margin: 26px 0 0; }
+  .toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; font-size: 13.5px; }
+  @media (max-width: 620px) { .toc ol { columns: 1; } }
+
+  .doc-foot { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--hairline); color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<article class="doc">
+
+  <header class="doc-head">
+    <h1>The maths behind the Sunset Visualiser</h1>
+    <p class="lede">Every formula the page uses, the function that implements it, and the numbers it produces. Each figure quoted here comes from running that code, not from a textbook or an estimate.</p>
+    <nav>
+      <a href="index.html">&larr; Back to the visualiser</a>
+      <a href="tests.html">Verification tests</a>
+    </nav>
+  </header>
+
+  <div class="toc">
+    <ol>
+      <li><a href="#conventions">Conventions</a></li>
+      <li><a href="#angular-diameter">The Sun&rsquo;s angular diameter</a></li>
+      <li><a href="#ephemeris">Where the Sun is</a></li>
+      <li><a href="#ground">Where the Sun appears from the ground</a></li>
+      <li><a href="#globe">Globe model: why the Sun doesn&rsquo;t shrink</a></li>
+      <li><a href="#flat">Flat model: why it would</a></li>
+      <li><a href="#refraction">Refraction</a></li>
+      <li><a href="#camera">The camera</a></li>
+      <li><a href="#decorative">What is decorative</a></li>
+      <li><a href="#simplifications">Known simplifications</a></li>
+      <li><a href="#results">Headline results</a></li>
+      <li><a href="#sources">Sources</a></li>
+    </ol>
+  </div>
+
+  <p>All the physics lives in <code>js/physics/</code> as small pure functions with no dependencies. Nothing in <code>js/render/</code> or <code>js/main.js</code> computes a physical quantity; those files only draw numbers they are handed. The <a href="tests.html">verification suite</a> checks the physics against published values, closed-form identities, and independent derivations of the same quantity that would disagree if either were wrong.</p>
+
+  <!-- 1 ------------------------------------------------------------------ -->
+  <h2 id="conventions"><span class="n">1</span>Conventions</h2>
+
+  <table>
+    <thead><tr><th>Quantity</th><th>Value</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr><td>Astronomical unit</td><td>149,597,870.700 km (exact)</td><td><code>constants.js</code> <code>AU_KM</code></td></tr>
+      <tr><td>Solar radius</td><td>695,700 km (IAU nominal)</td><td><code>constants.js</code> <code>R_SUN_KM</code></td></tr>
+      <tr><td>Earth radius</td><td>6,378.137 km (WGS-84 equatorial)</td><td><code>solar.js</code> <code>R_EARTH_KM</code></td></tr>
+      <tr><td>Mean solar day</td><td>86,400 s</td><td><code>constants.js</code> <code>SOLAR_DAY_S</code></td></tr>
+    </tbody>
+  </table>
+
+  <ul>
+    <li>Distances are in km, times in hours, and angles in degrees unless stated.</li>
+    <li><strong>Time is apparent solar time</strong>: the Sun is due south or north at 12:00. The hour angle is <i>H</i> = 15&deg; &times; (<i>t</i> &minus; 12).</li>
+    <li><strong>Earth is a sphere</strong> of radius equal to the equatorial radius. In the default scenario the subsolar point runs along the equator, where that radius is exact. Oblateness is covered in <a href="#simplifications">&sect;10</a>.</li>
+    <li><strong>Default scenario</strong>: an observer on the equator (0&deg;, 0&deg;), eye height 1.7 m, on 23 September 2026, the day of the September equinox. The window runs from three hours before geometric sunset (15:00) to sunset (18:00).</li>
+  </ul>
+
+  <!-- 2 ------------------------------------------------------------------ -->
+  <h2 id="angular-diameter"><span class="n">2</span>The Sun&rsquo;s angular diameter</h2>
+  <span class="impl">solar.js &rarr; angularDiameterDeg(distanceKm)</span>
+
+  <p>A sphere of radius <i>r</i> seen from distance <i>d</i> to its centre subtends</p>
+
+  <div class="eq"><i>&theta;</i> = 2 &middot; arcsin( <i>r</i> / <i>d</i> )</div>
+
+  <p>Note that this is arcsin, not arctan. The sight lines graze the limb, so they are tangent to the sphere and do not pass through its centre plane. The test suite pins this down with a sphere at <i>d</i> = 2<i>r</i>, which must subtend exactly 60&deg;.</p>
+
+  <p>At 1 AU: <i>&theta;</i> = 0.53291&deg; = 31.97&prime;.</p>
+
+  <!-- 3 ------------------------------------------------------------------ -->
+  <h2 id="ephemeris"><span class="n">3</span>Where the Sun is</h2>
+  <span class="impl">solar.js &rarr; solarPosition(date)</span>
+
+  <p>This uses the U.S. Naval Observatory / <em>Astronomical Almanac</em> low-precision formulae, accurate to about 0.01&deg; in ecliptic longitude between 1950 and 2050. With <i>n</i> = days since J2000.0 (2000 January 1, 12:00 TT):</p>
+
+  <div class="eq stack">
+    <span class="line"><i>L</i> = 280.460&deg; + 0.9856474&deg; <i>n</i> <span class="where">mean longitude</span></span>
+    <span class="line"><i>g</i> = 357.528&deg; + 0.9856003&deg; <i>n</i> <span class="where">mean anomaly</span></span>
+    <span class="line"><i>&lambda;</i> = <i>L</i> + 1.915&deg; sin <i>g</i> + 0.020&deg; sin 2<i>g</i> <span class="where">ecliptic longitude</span></span>
+    <span class="line"><i>&epsilon;</i> = 23.439&deg; &minus; 0.0000004&deg; <i>n</i> <span class="where">obliquity of the ecliptic</span></span>
+    <span class="line"><i>&delta;</i> = arcsin( sin <i>&epsilon;</i> &middot; sin <i>&lambda;</i> ) <span class="where">declination</span></span>
+    <span class="line"><i>D</i> = 1.00014 &minus; 0.01671 cos <i>g</i> &minus; 0.00014 cos 2<i>g</i> AU <span class="where">Earth&ndash;Sun distance</span></span>
+  </div>
+
+  <table>
+    <thead><tr><th>Check</th><th>This code</th><th>Published</th></tr></thead>
+    <tbody>
+      <tr><td>Declination at J2000.0</td><td>&minus;23.03&deg;</td><td>&minus;23.03&deg;</td></tr>
+      <tr><td>Earth&ndash;Sun distance at J2000.0</td><td>0.98331 AU</td><td>0.98330 AU</td></tr>
+      <tr><td>September 2026 equinox (<i>&delta;</i> = 0)</td><td>00:17 UTC, 23 Sep</td><td>00:05 UTC, 23 Sep</td></tr>
+      <tr><td>Perihelion / aphelion 2026</td><td>0.9833 / 1.0167 AU</td><td>0.9833 / 1.0167 AU</td></tr>
+    </tbody>
+  </table>
+
+  <p>The equinox lands 12 minutes off, which is within the formula&rsquo;s stated accuracy.</p>
+
+  <!-- 4 ------------------------------------------------------------------ -->
+  <h2 id="ground"><span class="n">4</span>Where the Sun appears from the ground</h2>
+
+  <h3>4.1 Altitude</h3>
+  <span class="impl">solar.js &rarr; altitudeGeocentricDeg(lat, dec, H)</span>
+
+  <div class="eq">sin <i>a</i> = sin <i>&phi;</i> &middot; sin <i>&delta;</i> + cos <i>&phi;</i> &middot; cos <i>&delta;</i> &middot; cos <i>H</i></div>
+
+  <p>For an observer on the equator (<i>&phi;</i> = 0) at an equinox (<i>&delta;</i> = 0), this reduces to <i>a</i> = 90&deg; &minus; <i>H</i>. The Sun is at <strong>exactly 45&deg; at 15:00</strong> and <strong>0&deg; at 18:00</strong>, descending at exactly 15&deg; per hour. That is why the default scenario uses this case: the arithmetic is checkable by hand.</p>
+
+  <p><code>altitudeTopocentricDeg</code> then subtracts diurnal parallax, at most 8.79&Prime; for the Sun. That is negligible, but it is included.</p>
+
+  <h3>4.2 The central angle</h3>
+  <span class="impl">solar.js &rarr; centralAngleDeg, groundDistanceToSubsolarKm</span>
+
+  <p>The <strong>subsolar point</strong> is where the Sun is directly overhead. The angle at Earth&rsquo;s centre between the observer and that point is</p>
+
+  <div class="eq"><i>&psi;</i> = 90&deg; &minus; <i>a</i></div>
+
+  <p>The great-circle ground distance to it is <i>R&psi;</i> (with <i>&psi;</i> in radians). At 15:00 in the default scenario that is <strong>5,009.4 km</strong>. This is a measurable distance on the real Earth, and it matters in <a href="#flat">&sect;6</a>.</p>
+
+  <h3>4.3 Sunset</h3>
+  <span class="impl">solar.js &rarr; hourAngleAtAltitude(lat, dec, h0)</span>
+
+  <div class="eq">cos <i>H</i><sub>0</sub> = ( sin <i>h</i><sub>0</sub> &minus; sin <i>&phi;</i> &middot; sin <i>&delta;</i> ) / ( cos <i>&phi;</i> &middot; cos <i>&delta;</i> )</div>
+
+  <p>With <i>h</i><sub>0</sub> = 0 (geometric sunset, the Sun&rsquo;s centre on the horizon) this gives <i>H</i><sub>0</sub> = 90&deg;, so sunset is at 18:00. The function returns <code>null</code> when |cos <i>H</i><sub>0</sub>| &gt; 1, which is polar day or night; the app then refuses to build a scenario rather than inventing one.</p>
+
+  <h3>4.4 The sea horizon</h3>
+  <span class="impl">solar.js &rarr; horizonDipDeg, horizonDistanceKm</span>
+
+  <p>For an eye at height <i>h</i> above a spherical sea:</p>
+
+  <div class="eq">dip = arccos( <i>R</i> / (<i>R</i> + <i>h</i>) ) &nbsp;&nbsp;&nbsp; distance = &radic;( <i>h</i> (2<i>R</i> + <i>h</i>) )</div>
+
+  <p>At 1.7 m the dip is <strong>2.51&prime;</strong> and the horizon is <strong>4.66 km</strong> away.</p>
+
+  <!-- 5 ------------------------------------------------------------------ -->
+  <h2 id="globe"><span class="n">5</span>Globe model: why the Sun doesn&rsquo;t shrink</h2>
+
+  <h3>5.1 Observer&ndash;Sun distance</h3>
+  <span class="impl">globe.js &rarr; observerSunDistanceKm(D, a)</span>
+
+  <p>The observer stands at distance <i>R</i> from Earth&rsquo;s centre and the Sun is at distance <i>D</i>. The angle between those directions, at Earth&rsquo;s centre, is <i>&psi;</i>. By the law of cosines:</p>
+
+  <div class="eq"><i>d</i>&sup2; = <i>D</i>&sup2; + <i>R</i>&sup2; &minus; 2<i>DR</i> &middot; cos <i>&psi;</i> = <i>D</i>&sup2; + <i>R</i>&sup2; &minus; 2<i>DR</i> &middot; sin <i>a</i></div>
+
+  <p>since cos <i>&psi;</i> = sin <i>a</i>. The test suite checks two exact cases: with the Sun overhead, <i>d</i> = <i>D</i> &minus; <i>R</i>; with the Sun on the horizon, <i>d</i> = &radic;(<i>D</i>&sup2; + <i>R</i>&sup2;).</p>
+
+  <h3>5.2 Two effects change the distance, and both are included</h3>
+
+  <table>
+    <thead><tr><th>Effect</th><th class="num">15:00 &rarr; 18:00</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Rotation.</strong> The observer is carried from 45&deg; to 0&deg; altitude, moving them about <i>R</i> cos 45&deg; further from the Sun.</td><td class="num"><strong>+4,510 km</strong></td></tr>
+      <tr><td><strong>Orbit.</strong> In September Earth is heading towards perihelion, so the Earth&ndash;Sun distance <i>D</i> itself shrinks.</td><td class="num"><strong>&minus;5,244 km</strong></td></tr>
+      <tr><td><strong>Net</strong></td><td class="num"><strong>&minus;734 km</strong></td></tr>
+    </tbody>
+  </table>
+
+  <p>The observer&ndash;Sun distances the code produces are <strong>150,107,466 km</strong> at 15:00 and <strong>150,106,732 km</strong> at 18:00. The net change is 734 km out of 150 million, or <strong>0.0005%</strong>.</p>
+
+  <div class="callout">
+    <p>The distance goes <em>down</em>, so on this date the Sun is very slightly <em>larger</em> at sunset than three hours earlier. Most treatments quote only the rotational term, which would overstate the change, so the code computes both.</p>
+  </div>
+
+  <h3>5.3 The resulting angular size</h3>
+
+  <table>
+    <thead><tr><th></th><th class="num">Angular diameter</th></tr></thead>
+    <tbody>
+      <tr><td>15:00</td><td class="num">0.531097&deg;</td></tr>
+      <tr><td>18:00</td><td class="num">0.531100&deg;</td></tr>
+      <tr><td>Change</td><td class="num"><strong>+0.0094&Prime;</strong> (+0.0005%)</td></tr>
+    </tbody>
+  </table>
+
+  <p>The unaided eye resolves about 60&Prime;, which is more than 6,000 times this change.</p>
+
+  <h3>5.4 Rate of change</h3>
+  <span class="impl">globe.js &rarr; angularRateBreakdown(t), angularRateDegPerHour(t)</span>
+
+  <p>Differentiating <i>&theta;</i> = 2 arcsin(<i>r</i>/<i>d</i>):</p>
+
+  <div class="eq">d<i>&theta;</i>/d<i>t</i> = &minus;2 (<i>r</i>/<i>d</i>&sup2;) / &radic;(1 &minus; (<i>r</i>/<i>d</i>)&sup2;) &middot; d<i>d</i>/d<i>t</i></div>
+
+  <p>Differentiating <i>d</i>&sup2; = <i>D</i>&sup2; + <i>R</i>&sup2; &minus; 2<i>DR</i> sin <i>a</i> splits the distance rate into exactly the two effects above:</p>
+
+  <div class="eq"><i>d</i> &middot; d<i>d</i>/d<i>t</i> = (<i>D</i> &minus; <i>R</i> sin <i>a</i>) d<i>D</i>/d<i>t</i> &minus; <i>RD</i> cos <i>a</i> &middot; d<i>a</i>/d<i>t</i>
+    <span class="where">first term orbital, second term rotational</span></div>
+
+  <p>d<i>D</i>/d<i>t</i> and d<i>&delta;</i>/d<i>t</i> come from differentiating the ephemeris series in &sect;3, and d<i>a</i>/d<i>t</i> from differentiating &sect;4.1 with d<i>H</i>/d<i>t</i> = 15&deg; per hour. The ephemeris series run in hours of UTC while the app&rsquo;s clock is apparent solar time; the two drift apart by about 2 parts in 10,000 through the equation of time, and the analytic form corrects for it. That correction matters here only because the two terms nearly cancel.</p>
+
+  <table>
+    <thead><tr><th>At</th><th class="num">Rotational</th><th class="num">Orbital</th><th class="num">Total</th></tr></thead>
+    <tbody>
+      <tr><td>15:00</td><td class="num">&minus;0.01504&Prime;/h</td><td class="num">+0.02226&Prime;/h</td><td class="num"><strong>+0.00722&Prime;/h</strong></td></tr>
+      <tr><td>18:00</td><td class="num">&minus;0.02127&Prime;/h</td><td class="num">+0.02227&Prime;/h</td><td class="num"><strong>+0.00100&Prime;/h</strong></td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <p><strong>How this is verified.</strong> The numerical rate (a central difference on the sampled curve) and the analytic rate above are written independently and share no algebra. The suite requires them to agree to 1 part in 100,000 of the terms&rsquo; magnitude, at five points across the window.</p>
+  </div>
+
+  <!-- 6 ------------------------------------------------------------------ -->
+  <h2 id="flat"><span class="n">6</span>Flat model: why it would</h2>
+  <span class="impl">flat.js &rarr; makeFlatModel</span>
+
+  <h3>6.1 The model</h3>
+
+  <p>The ground is a plane. The Sun is a small sphere at constant height <i>h</i> above it, travelling horizontally away from the observer in a straight line. This is the most charitable version of the flat model, and its speed is the <strong>measured speed of the subsolar point</strong> over the real ground:</p>
+
+  <div class="eq"><i>v</i> = 2&pi;<i>R</i> cos <i>&delta;</i> / 24 h = <strong>1,669.8 km/h</strong> at the equator</div>
+
+  <p>At the equator this agrees exactly with the arc length in &sect;4.2: 5,009.4 km = <i>v</i> &times; 3 h. The suite checks the two routes agree to one part in 10<sup>12</sup>.</p>
+
+  <h3>6.2 Where the flat Sun starts</h3>
+
+  <p>A flat model has to put the Sun somewhere at 15:00, and there are two defensible ways to do it. The app offers both.</p>
+
+  <p><strong>Match the real elevation</strong> (the default). Start the Sun at the elevation the real Sun actually has:</p>
+
+  <div class="eq"><i>x</i><sub>0</sub> = <i>h</i> / tan <i>a</i><sub>0</sub></div>
+
+  <p>Both camera views then begin identical, so every later difference comes from the model alone. The cost is an inconsistency, which the app reports on screen rather than hiding: at <i>h</i> = 1,000 mi the Sun must start <strong>1,609 km</strong> away horizontally, but the real subsolar point is <strong>5,009 km</strong> away.</p>
+
+  <p><strong>Above the real subsolar point.</strong> Set <i>x</i>(<i>t</i>) = <i>R&psi;</i>(<i>t</i>), the measured ground distance. This has no free parameters, but the Sun then starts at the wrong elevation: 17.81&deg; at 1,000 mi instead of 45&deg;.</p>
+
+  <p>The two agree at exactly one height, <i>h</i> &asymp; 5,009 km, which is offered as a preset.</p>
+
+  <h3>6.3 The Sun&rsquo;s size is derived, not assumed</h3>
+
+  <p>The flat Sun&rsquo;s physical radius is set so that it has the <strong>real</strong> angular diameter at the start of the window:</p>
+
+  <div class="eq"><i>d</i><sub>0</sub> = &radic;(<i>x</i><sub>0</sub>&sup2; + <i>h</i>&sup2;) &nbsp;&nbsp;&nbsp; <i>r</i> = <i>d</i><sub>0</sub> &middot; sin( <i>&theta;</i><sub>0</sub> / 2 )</div>
+
+  <p>At 1,000 mi that gives a Sun <strong>21.10 km</strong> across. The model is handed the correct starting appearance for free and only has to get the next three hours right.</p>
+
+  <h3>6.4 What happens next</h3>
+
+  <div class="eq stack">
+    <span class="line"><i>x</i>(<i>t</i>) = <i>x</i><sub>0</sub> + <i>v</i> (<i>t</i> &minus; <i>t</i><sub>0</sub>)</span>
+    <span class="line"><i>d</i>(<i>t</i>) = &radic;(<i>x</i>&sup2; + <i>h</i>&sup2;)</span>
+    <span class="line"><i>&theta;</i>(<i>t</i>) = 2 arcsin( <i>r</i> / <i>d</i> )</span>
+    <span class="line"><i>a</i>(<i>t</i>) = arctan( <i>h</i> / <i>x</i> )</span>
+  </div>
+
+  <table>
+    <thead><tr><th></th><th class="num">15:00</th><th class="num">18:00 (real sunset)</th></tr></thead>
+    <tbody>
+      <tr><td>Horizontal distance</td><td class="num">1,609 km</td><td class="num">6,619 km</td></tr>
+      <tr><td>Line of sight</td><td class="num">2,276 km</td><td class="num">6,812 km</td></tr>
+      <tr><td>Angular diameter</td><td class="num">0.5311&deg;</td><td class="num"><strong>0.1775&deg;</strong> (33.4% of start)</td></tr>
+      <tr><td>Elevation</td><td class="num">45.00&deg;</td><td class="num"><strong>13.67&deg;</strong></td></tr>
+    </tbody>
+  </table>
+
+  <p>The Sun shrinks by <strong>21.22&prime;</strong>, which is <strong>136,140&times;</strong> the globe model&rsquo;s change. And since <i>a</i> = arctan(<i>h</i>/<i>x</i>) is positive for any finite <i>x</i>, <strong>the flat Sun can never set</strong>. It only approaches the horizon asymptotically.</p>
+
+  <h3>6.5 Rate of change</h3>
+
+  <p>With the elevation anchor <i>x</i> is linear in <i>t</i>, so d<i>d</i>/d<i>t</i> = <i>xv</i>/<i>d</i> and</p>
+
+  <div class="eq">d<i>&theta;</i>/d<i>t</i> = &minus;2 (<i>r</i>/<i>d</i>&sup2;) / &radic;(1 &minus; (<i>r</i>/<i>d</i>)&sup2;) &middot; <i>xv</i>/<i>d</i></div>
+
+  <p><strong>Where the shrink is fastest.</strong> Since <i>&theta;</i> &asymp; 2<i>r</i>/<i>d</i>, the rate goes as <i>x</i>/(<i>x</i>&sup2;+<i>h</i>&sup2;)<sup>3/2</sup>, which peaks at <i>x</i> = <i>h</i>/&radic;2, where the elevation is arctan&radic;2 = 54.7&deg;. The window starts at 45&deg;, already past that peak, so the flat Sun shrinks fastest at the start and slows down: <strong>&minus;16.53&Prime; per minute</strong> at 15:00, <strong>&minus;2.54&Prime; per minute</strong> at 18:00. That is the shape of the curve in the rate chart.</p>
+
+  <div class="callout">
+    <p><strong>How this is verified.</strong> The suite compares this closed form with a central difference, then halves the differentiation step four times and requires the gap to fall by 4&times; each time. That is second-order convergence, which shows the remaining gap is truncation error in the numerical derivative and not an algebra error in either form.</p>
+  </div>
+
+  <h3>6.6 How high would the flat Sun need to be?</h3>
+  <span class="impl">flat.js &rarr; minimumHeightForImperceptibleShrink</span>
+
+  <p>Bisection on <i>h</i> for the lowest height at which the shrink across the window stays under 1&prime;, the naked-eye limit:</p>
+
+  <table>
+    <thead><tr><th>Start position</th><th class="num">Minimum height</th><th class="num">Elevation at real sunset</th></tr></thead>
+    <tbody>
+      <tr><td>Match the real elevation</td><td class="num"><strong>78,504 km</strong> (6.2 Earth diameters)</td><td class="num">43.2&deg;</td></tr>
+      <tr><td>Above the real subsolar point</td><td class="num"><strong>33,439 km</strong></td><td class="num">73.3&deg;</td></tr>
+    </tbody>
+  </table>
+
+  <p>At those heights the flat model hides the shrink only by failing to set at all.</p>
+
+  <!-- 7 ------------------------------------------------------------------ -->
+  <h2 id="refraction"><span class="n">7</span>Refraction</h2>
+  <span class="impl">refraction.js</span>
+
+  <p><strong>Off by default</strong>, and applied equally to both models when switched on. The argument here is about angular <em>size</em>, and refraction acts on the vertical axis only, so it would muddy the comparison. It is implemented and adjustable anyway, so that &ldquo;what about refraction?&rdquo; has an answer rather than a shrug.</p>
+
+  <p><strong>Sæmundsson (1986)</strong>, from true altitude <i>h</i> &mdash; the direction the app uses, since geometry is computed first:</p>
+
+  <div class="eq"><i>R</i> = 1.02&prime; / tan( <i>h</i> + 10.3 / (<i>h</i> + 5.11) )</div>
+
+  <p><strong>Bennett (1982)</strong>, from apparent altitude <i>h</i><sub>a</sub>, used to cross-check that the two are mutual inverses:</p>
+
+  <div class="eq"><i>R</i> = 1&prime; / tan( <i>h</i><sub>a</sub> + 7.31 / (<i>h</i><sub>a</sub> + 4.4) )</div>
+
+  <h3>7.1 How much refraction: the settings</h3>
+
+  <p>Both formulae are written for 1010 hPa and 10 &deg;C, and scale for other conditions as</p>
+
+  <div class="eq">factor = (<i>P</i> / 1010) &middot; (283 / (273 + <i>T</i>)) &middot; <i>scale</i></div>
+
+  <p>Denser air bends light more, so refraction rises with pressure and falls with temperature. But across the entire range of ordinary weather that spans only about <strong>&plusmn;10%</strong>, whereas real horizon refraction varies far more than that, because it is governed by the temperature <em>profile</em> of the lowest few hundred metres of air. A strong inversion over cold water can multiply it several times over and produce mirages and the Novaya&nbsp;Zemlya effect. <strong>Neither formula models that at all.</strong></p>
+
+  <p>So the <i>scale</i> multiplier is provided as an honest knob for exploring those conditions, not as a prediction of them, and the presets above &times;1 say so. Each preset&rsquo;s label is generated at runtime from the functions themselves, so a label can never advertise a figure the code does not produce.</p>
+
+  <table>
+    <thead><tr><th>Preset</th><th>Conditions</th><th class="num">Refraction at the horizon</th></tr></thead>
+    <tbody>
+      <tr><td>Off</td><td>pure geometry</td><td class="num">0</td></tr>
+      <tr><td>Standard air</td><td>1010 hPa, 10 &deg;C</td><td class="num">29.0&prime;</td></tr>
+      <tr><td>Hot day</td><td>1005 hPa, 40 &deg;C</td><td class="num">26.1&prime;</td></tr>
+      <tr><td>Cold day</td><td>1020 hPa, &minus;20 &deg;C</td><td class="num">32.7&prime;</td></tr>
+      <tr><td>Cold, high pressure</td><td>1040 hPa, &minus;30 &deg;C</td><td class="num">34.8&prime;</td></tr>
+      <tr><td>Strong inversion &times;2</td><td>beyond the formulae</td><td class="num">58.0&prime;</td></tr>
+      <tr><td>Extreme mirage &times;4</td><td>well beyond the formulae</td><td class="num">115.9&prime;</td></tr>
+    </tbody>
+  </table>
+
+  <h3>7.2 What refraction does, and what it cannot do</h3>
+  <span class="impl">refraction.js &rarr; apparentDiscDeg</span>
+
+  <p>It lifts the Sun, so at geometric sunset the Sun appears about half a degree <em>above</em> the horizon and real sunset comes a few minutes later. And because it lifts the lower limb more than the upper limb, it squashes the disc vertically: to 85.5% of its width in standard air, and to 42% under the &times;4 preset.</p>
+
+  <div class="callout">
+    <p><strong>The key property.</strong> Refraction depends only on altitude, so it compresses the disc&rsquo;s <em>height</em> and leaves its <em>width</em> exactly untouched &mdash; at any strength. The suite asserts this for every preset at five altitudes: width unchanged to the last bit, height always less than the true diameter.</p>
+    <p>So refraction cannot rescue the flat model. It can only ever make the Sun <em>smaller</em> in one axis, never smaller in both, and never smaller by the 67% the flat model needs.</p>
+  </div>
+
+  <p><strong>Horizon dip.</strong> With refraction on, the sea-horizon dip uses the navigational value 1.76&prime;&radic;<i>h</i>[m], which is 2.29&prime; at 1.7 m against a geometric 2.51&prime; (Bowditch). On the flat model the horizon is the vanishing line of the plane, at exactly 0&deg;.</p>
+
+  <p>Both formulae break down below about &minus;1&deg; apparent altitude, where real refraction is not predictable from a formula of this kind.</p>
+
+  <!-- 8 ------------------------------------------------------------------ -->
+  <h2 id="camera"><span class="n">8</span>The camera</h2>
+  <span class="impl">optics.js</span>
+
+  <h3>8.1 Lens</h3>
+
+  <p>A pinhole (rectilinear) lens on a full-frame 36 &times; 24 mm sensor. Focal length refers to the <strong>24 mm height</strong>, because vertical framing is what this scene is about; the horizontal field extends to fill the pane.</p>
+
+  <div class="eq">vertical field of view = 2 &middot; arctan( 12 mm / <i>f</i> )</div>
+
+  <p>At 24 mm that is 53.13&deg;.</p>
+
+  <h3>8.2 Projection</h3>
+  <span class="impl">optics.js &rarr; project, projectVector, discOutline</span>
+
+  <p>A direction <i>d&#770;</i> in local east&ndash;north&ndash;up coordinates, seen by a camera with basis (forward <i>f&#770;</i>, right <i>r&#770;</i>, up <i>u&#770;</i>), lands at</p>
+
+  <div class="eq"><i>x</i> = <i>f</i><sub>px</sub> (<i>d&#770;</i> &middot; <i>r&#770;</i>) / (<i>d&#770;</i> &middot; <i>f&#770;</i>) &nbsp;&nbsp;&nbsp; <i>y</i> = <i>f</i><sub>px</sub> (<i>d&#770;</i> &middot; <i>u&#770;</i>) / (<i>d&#770;</i> &middot; <i>f&#770;</i>) &nbsp;&nbsp;&nbsp; <i>f</i><sub>px</sub> = <i>H</i><sub>px</sub> &middot; <i>f</i> / 24 mm</div>
+
+  <p>The Sun&rsquo;s outline is built on the sphere and then projected, so the lens distorts it exactly as a real lens would rather than being drawn as a circle and hoped for.</p>
+
+  <h3>8.3 Framing</h3>
+  <span class="impl">optics.js &rarr; pitchForHorizonFractionDeg, defaultFraming</span>
+
+  <p>To put the horizon a fraction <i>k</i> of the frame height above the bottom edge:</p>
+
+  <div class="eq">tan(pitch) = (1 &minus; 2<i>k</i>) &middot; tan( vfov / 2 )</div>
+
+  <p>The default lens is the longest common focal length that fits everything from the horizon to the top of the Sun at 15:00 (45&deg; + <i>&theta;</i>/2 = 45.27&deg;) with 2% margins:</p>
+
+  <div class="eq"><i>f</i> &le; 12 mm (1 &minus; 2 &times; 0.02) / tan(45.27&deg; / 2) = 27.63 mm</div>
+
+  <p>The longest common lens that fits is therefore <strong>24 mm</strong>. The horizon then sits 8.31% of the frame height above the bottom, and that fraction is held fixed as the lens is changed.</p>
+
+  <h3>8.4 Why the loupe is a separate camera</h3>
+
+  <p>A rectilinear lens stretches objects off-axis. At 24 mm the Sun at 45&deg; is 22.6&deg; off-axis, where a disc is drawn <strong>16.9% taller</strong> than on-axis.</p>
+
+  <p>That is correct lens behaviour, and the main view reproduces it. But magnifying that frame would make the Sun appear to change size as it crossed it &mdash; exactly the effect under test. So the loupe is a second camera <strong>aimed straight at the Sun</strong>, where the disc is undistorted. The suite verifies that a disc viewed head-on spans exactly 2<i>f</i> tan <i>r</i> in both axes, at any altitude.</p>
+
+  <h3>8.5 Glow brightness</h3>
+
+  <p>The Sun&rsquo;s surface brightness does not change with distance, so the light received is proportional to its solid angle, which goes as (<i>&theta;</i>/<i>&theta;</i><sub>0</sub>)&sup2;. The glow&rsquo;s opacity is scaled by that ratio. By real sunset the flat Sun would deliver <strong>11%</strong> of its 15:00 light, which is another observable it fails.</p>
+
+  <!-- 9 ------------------------------------------------------------------ -->
+  <h2 id="decorative"><span class="n">9</span>What is decorative</h2>
+
+  <p>These carry no part of the argument, and both models use the same functions for them:</p>
+
+  <ul>
+    <li><strong>Sky and sea colours.</strong> They vary with solar altitude to look like a sunset, but they are not a radiative-transfer model.</li>
+    <li><strong>Glow shape and radius.</strong> Only the glow&rsquo;s relative brightness is physical (&sect;8.5).</li>
+    <li><strong>Globe side view distances.</strong> Earth and Sun sizes and spacing are schematic, labelled as such, with the true-scale sizes printed on the panel. The angles are exact.</li>
+    <li><strong>Flat side view Sun size.</strong> Drawn at a 4.5 px minimum when its true size would be sub-pixel, with the enlargement factor shown. Its position and line of sight are never adjusted.</li>
+  </ul>
+
+  <!-- 10 ----------------------------------------------------------------- -->
+  <h2 id="simplifications"><span class="n">10</span>Known simplifications</h2>
+
+  <table>
+    <thead><tr><th>Simplification</th><th>Size of effect</th><th>Why it cannot change the conclusion</th></tr></thead>
+    <tbody>
+      <tr><td>Spherical Earth; oblateness 0.34% ignored</td><td>Changes <i>R</i> by at most 21 km, so the 4,510 km rotational term by at most ~15 km</td><td>Moves the globe result by at most ~0.0003&Prime;</td></tr>
+      <tr><td>Low-precision ephemeris</td><td>~0.01&deg; in solar longitude</td><td>The globe result depends on distance <em>changes</em> of thousands of km; the ephemeris is far better than that</td></tr>
+      <tr><td>Flat Sun moves in a straight line</td><td>On the azimuthal-equidistant map it would circle at 2,623 km/h over the equator</td><td>A faster Sun shrinks faster, so the default is the flat model&rsquo;s best case</td></tr>
+      <tr><td>Declination held fixed for the flat Sun&rsquo;s speed</td><td><i>&delta;</i> changes ~0.05&deg; across the window</td><td>Changes <i>v</i> by about 3 parts in a million near the equinox</td></tr>
+      <tr><td>Refraction formulae, and the <i>scale</i> knob</td><td>Unreliable below about &minus;1&deg;; inversions are not modelled, only approximated by a multiplier</td><td>Refraction cannot alter the disc&rsquo;s width at any strength (&sect;7.2)</td></tr>
+      <tr><td>Naked-eye resolution taken as 1&prime;</td><td>A rule of thumb</td><td>The globe change is 6,000&times; smaller; the threshold could be wrong by 1,000&times; without mattering</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 11 ----------------------------------------------------------------- -->
+  <h2 id="results"><span class="n">11</span>Headline results</h2>
+
+  <p>Default scenario: equator, 23 September 2026, 15:00 &rarr; 18:00 apparent solar time, flat Sun at 1,000 mi starting at the real elevation.</p>
+
+  <table>
+    <thead><tr><th></th><th class="num">Globe</th><th class="num">Flat</th></tr></thead>
+    <tbody>
+      <tr><td>Angular diameter at 15:00</td><td class="num">0.531097&deg;</td><td class="num">0.531097&deg; (calibrated)</td></tr>
+      <tr><td>Angular diameter at 18:00</td><td class="num">0.531100&deg;</td><td class="num">0.1775&deg;</td></tr>
+      <tr><td>Change</td><td class="num">+0.0094&Prime;</td><td class="num">&minus;1,273&Prime; (&minus;21.22&prime;)</td></tr>
+      <tr><td>Size at 18:00 vs 15:00</td><td class="num">100.0005%</td><td class="num">33.4%</td></tr>
+      <tr><td>Altitude at 18:00</td><td class="num">0.00&deg;</td><td class="num">13.67&deg;</td></tr>
+      <tr><td>Distance to Sun, change</td><td class="num">&minus;734 km</td><td class="num">+4,536 km</td></tr>
+      <tr><td>Light received at 18:00 vs 15:00</td><td class="num">100.001%</td><td class="num">11.2%</td></tr>
+    </tbody>
+  </table>
+
+  <p>The flat model&rsquo;s change is <strong>136,140&times;</strong> the globe model&rsquo;s.</p>
+
+  <!-- 12 ----------------------------------------------------------------- -->
+  <h2 id="sources"><span class="n">12</span>Sources</h2>
+
+  <p>Every constant and formula in <code>js/physics/</code> traces to one of these.</p>
+
+  <h3>Constants</h3>
+  <table>
+    <thead><tr><th>Value</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>Astronomical unit, 149,597,870,700 m (exact)</td><td>IAU 2012 Resolution B2, <em>Re-definition of the astronomical unit of length</em></td></tr>
+      <tr><td>Nominal solar radius, 6.957 &times; 10<sup>8</sup> m</td><td>IAU 2015 Resolution B3, <em>Recommended nominal conversion constants for selected solar and planetary properties</em></td></tr>
+      <tr><td>Earth equatorial radius, 6,378,137 m</td><td>World Geodetic System 1984 (WGS-84), NIMA Technical Report TR8350.2</td></tr>
+      <tr><td>Earth mean radius, 6,371,008.8 m</td><td>Moritz, H. (2000), <em>Geodetic Reference System 1980</em>, Journal of Geodesy 74, 128&ndash;133</td></tr>
+      <tr><td>Mean sidereal day, 86,164.0905 s</td><td>IERS Conventions (2010), IERS Technical Note 36</td></tr>
+      <tr><td>International mile 1,609.344 m; foot 0.3048 m (exact)</td><td>International Yard and Pound Agreement (1959)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Solar position</h3>
+  <ul>
+    <li><strong>Low-precision formulae for the Sun&rsquo;s coordinates.</strong> U.S. Naval Observatory, <em>The Astronomical Almanac</em>, Section C (&ldquo;Sun&rdquo;). Stated accuracy 0.01&deg; over 1950&ndash;2050.</li>
+    <li>Meeus, J. (1998), <em>Astronomical Algorithms</em>, 2nd ed., Willmann-Bell &mdash; ch. 13 (coordinate transformations), ch. 15 (rising and setting), ch. 25 (solar coordinates).</li>
+  </ul>
+
+  <h3>Refraction and horizon dip</h3>
+  <ul>
+    <li>Sæmundsson, Þ. (1986), <em>Astronomical refraction</em>, Sky &amp; Telescope 72, 70.</li>
+    <li>Bennett, G. G. (1982), <em>The calculation of astronomical refraction in marine navigation</em>, Journal of Navigation 35, 255&ndash;259.</li>
+    <li>Bowditch, N., <em>The American Practical Navigator</em> (NGA Pub. 9), altitude corrections: dip of the sea horizon, 1.76&prime;&radic;<i>h</i> (<i>h</i> in metres).</li>
+  </ul>
+
+  <h3>Values used to check the code</h3>
+  <table>
+    <thead><tr><th>Check</th><th>Value</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>Solar declination and distance at J2000.0</td><td>&minus;23.03&deg;, 0.98330 AU</td><td><em>The Astronomical Almanac</em> for 2000</td></tr>
+      <tr><td>September 2026 equinox</td><td>2026-09-23 00:05 UTC</td><td>USNO <em>Earth&rsquo;s Seasons</em>; also <a href="https://earthsky.org/astronomy-essentials/everything-you-need-to-know-september-equinox/">EarthSky</a> and <a href="https://starwalk.space/en/news/autumnal-equinox-first-day-of-fall">Star Walk</a></td></tr>
+      <tr><td>Perihelion and aphelion distances</td><td>0.9833 AU, 1.0167 AU</td><td><em>The Astronomical Almanac</em></td></tr>
+      <tr><td>Refraction at the horizon</td><td>about 34&prime;</td><td>Bennett (1982); standard navigational tables</td></tr>
+      <tr><td>Equation of time, early November</td><td>about +16.4 min</td><td><em>The Astronomical Almanac</em></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Rules of thumb, flagged as such where used</h3>
+  <ul>
+    <li><strong>Naked-eye angular resolution of about 1&prime;.</strong> This is the definition of standard 6/6 (20/20) Snellen visual acuity: resolving detail that subtends one arcminute. It is used only to ask &ldquo;could anyone see this change?&rdquo;, and the conclusion holds with any threshold within a factor of 1,000.</li>
+  </ul>
+
+  <footer class="doc-foot">
+    <p>Sunset Visualiser &middot; <a href="index.html">the visualiser</a> &middot; <a href="tests.html">verification tests</a> &middot; MIT licensed. If you find an error in any of this, it is a bug worth reporting.</p>
+  </footer>
+
+</article>
+</body>
+</html>

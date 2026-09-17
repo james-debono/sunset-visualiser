@@ -26,9 +26,8 @@ The charts beneath show angular size and its rate of change over time, and a tab
 
 The whole point is that you don't have to take this on trust.
 
-- **[`docs/MATH.md`](docs/MATH.md)** has every formula, with the function that implements it and the numbers it produces.
-- **[`tests.html`](tests.html)** runs 62 checks in your browser: against published astronomical values, closed-form identities, and independent derivations of the same quantity that would disagree if either were wrong.
-- **[`docs/SOURCES.md`](docs/SOURCES.md)** gives the origin of every constant.
+- **[The maths](maths.html)** (`maths.html`) has every formula, the function that implements it, the numbers it produces, and the source of every constant. Open it from the page itself, or on the published site.
+- **[`tests.html`](tests.html)** runs 69 checks in your browser: against published astronomical values, closed-form identities, and independent derivations of the same quantity that would disagree if either were wrong.
 - **`js/physics/`** contains all the physics as small pure functions with no dependencies. `js/render/` only draws what it is handed.
 
 In the page's browser console, `sunset.globe.sample(16.5)` and `sunset.flat.sample(16.5)` return the full model state at 16:30.
@@ -38,7 +37,7 @@ In the page's browser console, `sunset.globe.sample(16.5)` and `sunset.flat.samp
 - **Both distance effects on the globe.** Earth's rotation carries the observer 4,510 km further from the Sun over the window, but in September the orbit brings Earth 5,244 km closer. The net result is quoted, not just the convenient half.
 - **The flat model at its strongest.** The Sun gets the correct starting size and elevation for free, moving in a straight line at the measured speed of the subsolar point. A second mode places it above the real subsolar point instead, and the inconsistency each mode carries is shown on screen.
 - **Lens distortion.** A wide lens stretches objects near the edge of frame by about 17%. The main view reproduces this, and the loupe is a separate camera aimed at the Sun so distortion can't masquerade as a size change.
-- **Refraction.** Off by default because it only affects the vertical axis, but available as a toggle for both models.
+- **Refraction.** Off by default because it only affects the vertical axis, but adjustable from hot-day to extreme-mirage conditions for both models. However strong it gets, it squashes the disc's height and leaves its width untouched, which is why it cannot rescue the flat model.
 - **Decorative versus physical.** Sky colours are decorative, and the docs say so. Positions, sizes, angles and relative brightness are computed.
 
 ## Run locally
@@ -56,6 +55,7 @@ Then open <http://localhost:8000/> and <http://localhost:8000/tests.html>.
 ```
 index.html            the visualiser
 tests.html            the verification suite
+maths.html            the maths and sources
 css/style.css
 js/
   physics/            all the physics, as pure functions
@@ -72,9 +72,6 @@ js/
 tests/
   harness.js          ~100-line dependency-free test runner
   physics.test.js
-docs/
-  MATH.md
-  SOURCES.md
 ```
 
 ## Default scenario
