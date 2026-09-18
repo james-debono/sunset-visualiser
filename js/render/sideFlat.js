@@ -33,8 +33,10 @@ function niceStep(raw) {
 /** Side of the plan-view inset, and 0 when there is no inset to draw. */
 export function planInsetSize(W, H, plan) {
   if (!plan) return 0;
-  const wanted = Math.max(plan.size || 0, 130);
-  return Math.round(Math.max(110, Math.min(wanted, H - 16, W * 0.42)));
+  // At least as tall as the readout it sits opposite, and otherwise as much of
+  // the pane as it can have without crowding the elevation drawing.
+  const wanted = Math.max(plan.size || 0, H * 0.9, 130);
+  return Math.round(Math.max(110, Math.min(wanted, H - 16, W * 0.3)));
 }
 
 export function flatSideLayout(W, H, v) {
@@ -104,12 +106,16 @@ export function drawFlatSide(stage, v, t) {
   ctx.lineTo(W, Math.round(groundY) + 0.5);
   ctx.stroke();
 
-  // Distance ticks from the observer, in the chosen unit.
-  const unitSpan = (W - padR - obsX) / s / v.kmPerTickUnit;
-  const step = niceStep(unitSpan / 5);
+  // Distance ticks from the observer, in the chosen unit. They stop at the edge
+  // of the drawing rather than running on under the plan inset, and the step is
+  // wide enough that the labels cannot touch.
+  const drawRight = W - padR + 8;
+  const unitSpan = (drawRight - obsX) / s / v.kmPerTickUnit;
+  const minSpacingPx = 58;
+  const step = niceStep(Math.max(unitSpan / 5, minSpacingPx / (s * v.kmPerTickUnit)));
   ctx.font = font(10);
   ctx.textBaseline = 'top';
-  for (let u = 0; X(u * v.kmPerTickUnit) <= W - 8; u += step) {
+  for (let u = 0; X(u * v.kmPerTickUnit) <= drawRight; u += step) {
     const x = X(u * v.kmPerTickUnit);
     ctx.strokeStyle = t.axis;
     ctx.beginPath();
@@ -204,15 +210,24 @@ export function drawFlatSide(stage, v, t) {
   haloText(ctx, v.angleLabel, obsX + (ra + 10) * Math.cos(midA), groundY - (ra + 10) * Math.sin(midA) + 4,
     { fill: t.ink, halo: t.surface, size: 12, weight: 650, align: 'left' });
 
-  // Height label on the far side of the drop line from the line of sight,
-  // unless that would push it off the right edge.
-  const hLabelY = Math.max(sunY + drawR + 16, (sunY + groundY) / 2);
-  const nearRight = sx > W - padR - 100;
-  haloText(ctx, v.hLabel, sx + (nearRight ? -6 : 6), hLabelY,
-    { fill: t['ink-2'], halo: t.surface, size: 10.5, align: nearRight ? 'right' : 'left' });
-
-  haloText(ctx, v.dLabel, (obsX + sx) / 2 - 6, (groundY + sunY) / 2 - 6,
-    { fill: t['ink-2'], halo: t.surface, size: 10.5, align: 'right' });
+  // When the Sun is far off and low the triangle is too shallow to hold a
+  // label inside it, so the measurements go into the open sky above the path
+  // rather than on top of the lines.
+  if (groundY - sunY < 70) {
+    haloText(ctx, v.hLabel, sx, sunY - 24,
+      { fill: t['ink-2'], halo: t.surface, size: 10.5, align: 'center' });
+    haloText(ctx, v.dLabel, (obsX + sx) / 2, sunY - 40,
+      { fill: t['ink-2'], halo: t.surface, size: 10.5, align: 'center' });
+  } else {
+    // Height label on the far side of the drop line from the line of sight,
+    // unless that would push it off the right edge.
+    const hLabelY = Math.max(sunY + drawR + 16, (sunY + groundY) / 2);
+    const nearRight = sx > W - padR - 100;
+    haloText(ctx, v.hLabel, sx + (nearRight ? -6 : 6), hLabelY,
+      { fill: t['ink-2'], halo: t.surface, size: 10.5, align: nearRight ? 'right' : 'left' });
+    haloText(ctx, v.dLabel, (obsX + sx) / 2 - 6, (groundY + sunY) / 2 - 6,
+      { fill: t['ink-2'], halo: t.surface, size: 10.5, align: 'right' });
+  }
 
   // The x label starts after the angle label, whose width we measure.
   ctx.font = font(12, 650);

@@ -681,7 +681,9 @@ bindSegmented($('path'), (v) => {
 
 /** Anything that changes which flat model is on screen goes through here. */
 function applyFlatModelChange() {
-  $('anchor-field').hidden = state.path === 'gleason';
+  const onMap = state.path === 'gleason';
+  $('anchor-field').hidden = onMap;
+  $('path-note').hidden = !onMap;
   writeState();
   rebuildFlat();
   recomputeMinHeight();
@@ -1172,6 +1174,7 @@ syncSegmented($('units'), state.units);
 syncSegmented($('path'), state.path);
 $('anchor').value = state.anchor;
 $('anchor-field').hidden = state.path === 'gleason';
+$('path-note').hidden = state.path !== 'gleason';
 renderScenarioLine();
 sizeChart.setTokens(tokens);
 rateChart.setTokens(tokens);

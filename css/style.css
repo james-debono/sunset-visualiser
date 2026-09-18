@@ -87,6 +87,10 @@
 
 * { box-sizing: border-box; }
 
+/* Several components set an explicit display, which outranks the browser's
+   own [hidden] rule and leaves "hidden" elements on screen. */
+[hidden] { display: none !important; }
+
 html, body { height: 100%; }
 
 body {
@@ -151,6 +155,13 @@ a:hover { color: var(--ink); text-decoration-color: currentColor; }
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
+}
+
+.quad-controls .note {
+  color: var(--muted);
+  font-size: 11.5px;
+  max-width: 44ch;
+  line-height: 1.3;
 }
 
 .globals .note {
@@ -826,6 +837,11 @@ input[type="range"]:hover::-webkit-slider-thumb { border-color: var(--ink); }
   .readout dd { text-align: right; }
 
   .analysis { grid-template-columns: 1fr; }
+
+  /* Both unit systems in one cell is too wide for a phone, so let the second
+     system fall to its own line rather than scrolling the page sideways. */
+  .compare th, .compare td { white-space: normal; }
+  .table-view { overflow-x: auto; }
 
   /* Playback controls sit right under the title instead of pinning a quarter
      of a phone screen. */
