@@ -2,6 +2,8 @@
 
 **A flat Earth predicts a Sun that shrinks as it sets. A globe predicts one that doesn't.**
 
+**Live at [sunset.observable.science](https://sunset.observable.science)** · [the maths](https://sunset.observable.science/maths) · [the verification tests](https://sunset.observable.science/tests)
+
 An interactive, side-by-side model of a sunset on a spherical Earth and on a flat one. It starts three hours before sunset, with both Suns identical in size and position, and lets you watch what each model predicts.
 
 | | Globe | Flat (Sun 1,000 mi up) |
