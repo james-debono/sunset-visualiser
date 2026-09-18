@@ -21,6 +21,18 @@
   .doc-head h1 { font-size: 26px; font-weight: 650; letter-spacing: -0.015em; margin: 0 0 6px; }
   .doc-head .lede { color: var(--ink-2); margin: 0; max-width: 62ch; }
   .doc-head nav { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 14px; font-size: 13px; }
+  .backbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    margin: -28px -20px 0;
+    padding: 10px 20px;
+    background: color-mix(in srgb, var(--page) 88%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid transparent;
+  }
+  .backbar.stuck { border-bottom-color: var(--hairline); }
   .backbtn {
     display: inline-flex; align-items: center; gap: 7px;
     padding: 6px 14px 6px 11px;
@@ -115,11 +127,14 @@
 <body>
 <article class="doc">
 
+  <div class="backbar" id="backbar">
+    <a class="backbtn" href="index.html" data-back>&larr; Back to the visualiser</a>
+  </div>
+
   <header class="doc-head">
     <h1>The maths behind the Sunset Visualiser</h1>
     <p class="lede">Every formula the page uses, the function that implements it, and the numbers it produces. Each figure quoted here comes from running that code, not from a textbook or an estimate.</p>
     <nav>
-      <a class="backbtn" href="index.html" data-back>&larr; Back to the visualiser</a>
       <a href="tests.html">Verification tests</a>
     </nav>
   </header>
@@ -426,22 +441,25 @@
 
   <div class="eq">factor = (<i>P</i> / 1010) &middot; (283 / (273 + <i>T</i>)) &middot; <i>scale</i></div>
 
-  <p>Denser air bends light more, so refraction rises with pressure and falls with temperature. But across the entire range of ordinary weather that spans only about <strong>&plusmn;10%</strong>, whereas real horizon refraction varies far more than that, because it is governed by the temperature <em>profile</em> of the lowest few hundred metres of air. A strong inversion over cold water can multiply it several times over and produce mirages and the Novaya&nbsp;Zemlya effect. <strong>Neither formula models that at all.</strong></p>
-
-  <p>So the <i>scale</i> multiplier is provided as an honest knob for exploring those conditions, not as a prediction of them, and the presets above &times;1 say so. Each preset&rsquo;s label is generated at runtime from the functions themselves, so a label can never advertise a figure the code does not produce.</p>
+  <p>Denser air bends light more, so refraction rises with pressure and falls with temperature. Each preset&rsquo;s label is generated at runtime from the functions themselves, so a label can never advertise a figure the code does not produce.</p>
 
   <table>
     <thead><tr><th>Preset</th><th>Conditions</th><th class="num">Refraction at the horizon</th></tr></thead>
     <tbody>
       <tr><td>Off</td><td>pure geometry</td><td class="num">0</td></tr>
-      <tr><td>Standard air</td><td>1010 hPa, 10 &deg;C</td><td class="num">29.0&prime;</td></tr>
+      <tr><td>Standard air <em>(default)</em></td><td>1010 hPa, 10 &deg;C</td><td class="num">29.0&prime;</td></tr>
       <tr><td>Hot day</td><td>1005 hPa, 40 &deg;C</td><td class="num">26.1&prime;</td></tr>
       <tr><td>Cold day</td><td>1020 hPa, &minus;20 &deg;C</td><td class="num">32.7&prime;</td></tr>
       <tr><td>Cold, high pressure</td><td>1040 hPa, &minus;30 &deg;C</td><td class="num">34.8&prime;</td></tr>
-      <tr><td>Strong inversion &times;2</td><td>beyond the formulae</td><td class="num">58.0&prime;</td></tr>
-      <tr><td>Extreme mirage &times;4</td><td>well beyond the formulae</td><td class="num">115.9&prime;</td></tr>
     </tbody>
   </table>
+
+  <p>That is the whole range, and it is narrow: across all ordinary weather the scaling spans only about <strong>&plusmn;10%</strong>.</p>
+
+  <div class="callout">
+    <p><strong>Why there is no &ldquo;mirage&rdquo; preset.</strong> Real horizon refraction varies far more than weather scaling suggests, because it is governed by the temperature <em>profile</em> of the lowest few hundred metres of air. A strong inversion over cold water can multiply it several times over, produce mirages, stack and invert images, and in the Novaya&nbsp;Zemlya effect lift a Sun that set days ago.</p>
+    <p>Neither formula here models any of that. Doing it properly means ray tracing through a temperature profile, including ducting and the multiple images it produces &mdash; a different piece of work. Rather than offer a multiplier dressed up as a setting, this page offers only conditions the formulae are actually valid for, and answers the mirage question with the argument in &sect;7.2 instead, which does not depend on modelling it.</p>
+  </div>
 
   <h3>7.2 What refraction does, and what it cannot do</h3>
   <span class="impl">refraction.js &rarr; apparentDiscDeg</span>
@@ -449,8 +467,9 @@
   <p>It lifts the Sun, so at geometric sunset the Sun appears about half a degree <em>above</em> the horizon and real sunset comes a few minutes later. And because it lifts the lower limb more than the upper limb, it squashes the disc vertically: to 85.5% of its width in standard air, and to 42% under the &times;4 preset.</p>
 
   <div class="callout">
-    <p><strong>The key property.</strong> Refraction depends only on altitude, so it compresses the disc&rsquo;s <em>height</em> and leaves its <em>width</em> exactly untouched &mdash; at any strength. The suite asserts this for every preset at five altitudes: width unchanged to the last bit, height always less than the true diameter.</p>
-    <p>So refraction cannot rescue the flat model. It can only ever make the Sun <em>smaller</em> in one axis, never smaller in both, and never smaller by the 67% the flat model needs.</p>
+    <p><strong>The key property, and it is a theorem rather than a result of these formulae.</strong> Refraction is a function of altitude alone. Two points at the same altitude are therefore displaced identically, so the <em>horizontal</em> diameter of the disc cannot change &mdash; at any strength, under any profile, including ones nobody can compute. All refraction can do is move the limbs vertically relative to each other, squashing the disc, or in the extreme turning the image over.</p>
+    <p>That is what settles the mirage question without modelling a mirage. The flat model needs the Sun to lose <strong>67% of its width</strong>. Refraction cannot take away any of it.</p>
+    <p>The suite checks the width is untouched to the last bit for every preset at eleven altitudes from 45&deg; down to 4&deg; below the horizon, and separately at 2, 4 and 8 times standard refraction &mdash; strengths no preset offers &mdash; to show the property does not depend on the setting. At 8 times, the lower limb overtakes the upper one and the image inverts, which the code reports as a flag rather than as a negative height.</p>
   </div>
 
   <p><strong>Horizon dip.</strong> With refraction on, the sea-horizon dip uses the navigational value 1.76&prime;&radic;<i>h</i>[m], which is 2.29&prime; at 1.7 m against a geometric 2.51&prime; (Bowditch). On the flat model the horizon is the vanishing line of the plane, at exactly 0&deg;.</p>
@@ -467,11 +486,12 @@
     </tbody>
   </table>
 
+  <p><strong>Nothing you can see depends on the clamp.</strong> Under every preset the Sun&rsquo;s upper limb is already below the horizon before its altitude reaches the limit &mdash; between 0.76&deg; and 0.98&deg; below it, depending on the preset, which the test suite checks. Past that the Sun is hidden by the sea, and the readouts say &ldquo;not modelled this low&rdquo; instead of quoting a number.</p>
+
   <p>Below those altitudes the code <strong>holds refraction at its maximum modelled value</strong> rather than following the formula down. The test suite walks both formulae from 60&deg; down to &minus;6&deg; and requires that refraction never decreases, and checks the disc is never widened at any altitude down to 4&deg; below the horizon under every preset.</p>
 
   <div class="callout">
-    <p><strong>Be clear about what the clamp is.</strong> It is a limit of the formulae, not a description of the air. Down there real refraction keeps growing and keeps squashing the disc &mdash; that is what produces the flattened, stacked and omega-shaped Suns in mirage photographs. The clamped model instead shows a Sun that is lifted but no longer squashed at all, and that is simply <em>wrong</em>. It is wrong in the safe direction: it understates refraction rather than inventing a stretched Sun.</p>
-    <p>It only bites below &minus;1.9&deg;. In standard air the Sun has long since set by then, so the default view never reaches it. It shows up only under the &times;2 and &times;4 presets, which are already flagged as beyond what the formulae model.</p>
+    <p><strong>What the clamp is.</strong> A guard against nonsense, not a description of the air. Down there real refraction keeps growing and keeps squashing the disc &mdash; that is what produces the flattened, stacked and omega-shaped Suns in mirage photographs &mdash; so a held value is wrong. It is wrong in the safe direction, understating refraction rather than inventing a stretched Sun, and it governs nothing that is on screen.</p>
   </div>
 
   <p>This matters in practice because the timeline runs to 4&deg; below the horizon, so that the disc can be seen to set even under the &times;4 preset, which lifts it by nearly 3&deg;.</p>
@@ -639,6 +659,16 @@
       e.preventDefault();
       history.back();
     });
+  }
+
+  const bar = document.getElementById('backbar');
+  if (bar) {
+    const sentinel = document.createElement('div');
+    bar.parentNode.insertBefore(sentinel, bar);
+    new IntersectionObserver(
+      ([e]) => bar.classList.toggle('stuck', e.intersectionRatio === 0),
+      { threshold: [0, 1] },
+    ).observe(sentinel);
   }
 </script>
 </body>

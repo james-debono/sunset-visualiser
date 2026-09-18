@@ -64,11 +64,26 @@
     color: var(--fg); text-decoration: none; font-weight: 500; font-size: 13px;
   }
   .backbtn:hover { border-color: var(--muted); }
+  .backbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    margin: -32px -16px 0;
+    padding: 12px 16px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid transparent;
+  }
+  .backbar.stuck { border-bottom-color: var(--rule); }
+  .backbar .backbtn { margin-bottom: 0; }
 </style>
 </head>
 <body>
 <main>
-  <a class="backbtn" href="index.html" data-back>&larr; Back to the visualiser</a>
+  <div class="backbar" id="backbar">
+    <a class="backbtn" href="index.html" data-back>&larr; Back to the visualiser</a>
+  </div>
   <h1>Verification suite</h1>
   <p class="sub">
     Every number this page relies on, checked against published values, closed-form
@@ -137,6 +152,16 @@
       e.preventDefault();
       history.back();
     });
+  }
+
+  const bar = document.getElementById('backbar');
+  if (bar) {
+    const sentinel = document.createElement('div');
+    bar.parentNode.insertBefore(sentinel, bar);
+    new IntersectionObserver(
+      ([e]) => bar.classList.toggle('stuck', e.intersectionRatio === 0),
+      { threshold: [0, 1] },
+    ).observe(sentinel);
   }
 </script>
 </body>

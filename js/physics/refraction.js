@@ -17,26 +17,37 @@
  *      That is a compression of the image, not a change in distance -- and it
  *      makes the Sun *smaller* in one axis, never larger.
  *
- * How much refraction is adjustable, in two separate ways:
+ * How much refraction is adjustable through `pressureHPa` and `temperatureC`,
+ * which scale the standard formulae the usual way. Across the full range of
+ * weather that spans only about +-10%.
  *
- *   - `pressureHPa` and `temperatureC` scale the standard formulae the usual
- *     way. Across the full range of weather this spans only about +-10%.
- *   - `scale` multiplies the result outright. Real horizon refraction varies
- *     far more than weather scaling suggests, because it is dominated by the
- *     temperature *profile* of the lowest few hundred metres of air. A strong
- *     inversion can several-times the standard value and produce mirages and
- *     the Novaya Zemlya effect. Neither formula below models that at all, so
- *     `scale` is an honest knob for exploring those conditions rather than a
- *     prediction of them.
+ * Real horizon refraction varies far more, because it is dominated by the
+ * temperature *profile* of the lowest few hundred metres of air: a strong
+ * inversion can multiply it several times over and produce mirages and the
+ * Novaya Zemlya effect. Neither formula below models any of that, so no preset
+ * here pretends to. Getting it right needs ray tracing through a temperature
+ * profile, including ducting and the multiple stacked images it produces.
+ *
+ * None of which changes the conclusion, because of the property proved in
+ * apparentDiscDeg: *any* refraction that depends only on altitude leaves the
+ * disc's width untouched. That covers mirage conditions without modelling
+ * them. The `scale` multiplier below exists so the test suite can demonstrate
+ * that over a wide range; it is not offered in the interface, precisely
+ * because the formulae are not valid there.
  *
  * Formulae assume the standard atmosphere of their authors (1010 hPa, 10 C).
  * Both stop behaving below about -1.9 deg, where their inner term turns and the
  * curve starts *falling* with depth -- which, applied to a disc, would refract
  * the upper limb more than the lower and stretch the Sun vertically instead of
  * squashing it. Refraction is therefore held at its maximum modelled value
- * below that altitude (see MONOTONIC_LIMIT below). Real refraction keeps
- * growing down there, so this is the conservative choice: it understates the
- * lift and understates the flattening, and it never produces the nonsense.
+ * below that altitude (see MONOTONIC_LIMIT below).
+ *
+ * The clamp is a guard, not a model: down there real refraction keeps growing
+ * and keeps squashing the disc, so a held value is wrong, just wrong in the
+ * safe direction. Nothing visible depends on it. Under every preset offered,
+ * the Sun has already set well before its altitude reaches the limit, which
+ * the test suite checks; the clamp only governs the readouts for a Sun that is
+ * out of sight, and those say "not modelled this low" rather than quoting it.
  */
 
 import { DEG } from './constants.js';
@@ -143,12 +154,21 @@ export function apparentDiscDeg(trueAltDeg, trueDiameterDeg, c) {
   const r = trueDiameterDeg / 2;
   const top = apparentAltitudeDeg(trueAltDeg + r, c);
   const bottom = apparentAltitudeDeg(trueAltDeg - r, c);
+  const span = top - bottom;
   return {
-    verticalDeg: top - bottom,
+    verticalDeg: Math.abs(span),
     horizontalDeg: trueDiameterDeg,
     /** 1.0 = circular, lower = more squashed. */
-    flattening: (top - bottom) / trueDiameterDeg,
+    flattening: Math.abs(span) / trueDiameterDeg,
     apparentCentreAltDeg: (top + bottom) / 2,
+    /**
+     * True when refraction is steep enough to lift the lower limb past the
+     * upper one, turning the image upside down. That is a mirage, and it is
+     * real -- but these formulae cannot say where or how strongly it happens,
+     * so no preset reaches it. The flag exists so the code can never silently
+     * report a negative height.
+     */
+    inverted: span < 0,
   };
 }
 
@@ -175,8 +195,8 @@ export function apparentHorizonDipDeg(eyeHeightM, c) {
 /**
  * The presets offered in the UI. Labels are built at runtime from the
  * functions above, so a preset can never advertise a figure the code does not
- * produce. `scale` above 1 is outside what the formulae model, and those
- * presets say so.
+ * produce. Every preset sits inside the range the formulae are valid for:
+ * nothing here is a guess dressed up as a setting.
  */
 export const REFRACTION_PRESETS = Object.freeze([
   {
@@ -202,15 +222,5 @@ export const REFRACTION_PRESETS = Object.freeze([
     id: 'cold-high', label: 'Cold, high pressure', on: true,
     conditions: { pressureHPa: 1040, temperatureC: -30, scale: 1 },
     note: '1040 hPa, −30 °C — about the strongest the weather scaling gives.',
-  },
-  {
-    id: 'inversion', label: 'Strong inversion ×2', on: true,
-    conditions: { pressureHPa: 1010, temperatureC: 10, scale: 2 },
-    note: 'Twice standard. Beyond what the formulae model: a temperature inversion over cold water can do this, and it is where mirages start.',
-  },
-  {
-    id: 'mirage', label: 'Extreme mirage ×4', on: true,
-    conditions: { pressureHPa: 1010, temperatureC: 10, scale: 4 },
-    note: 'Four times standard. Well beyond the formulae. Included to show that even absurd refraction squashes the disc rather than shrinking its width.',
   },
 ]);

@@ -609,21 +609,35 @@ suite('Refraction settings', () => {
     lessThan(byId('hot'), byId('standard'), 'hot day vs standard');
     greaterThan(byId('cold'), byId('standard'), 'cold day vs standard');
     greaterThan(byId('cold-high'), byId('cold'), 'cold and high pressure vs cold');
-    greaterThan(byId('inversion'), byId('cold-high'), 'inversion vs the weather extreme');
-    greaterThan(byId('mirage'), byId('inversion'), 'mirage vs inversion');
-    approx(byId('mirage'), byId('standard') * 4, 1e-9, 'the x4 preset is exactly x4');
+  });
+
+  test('every preset stays inside the range the formulae are valid for', () => {
+    // Nothing offered in the interface may rely on the clamp, because the
+    // clamp is a guard against nonsense, not a model of the air. Check the Sun
+    // has already set under each preset before its altitude reaches the limit.
+    const theta = 0.5311, dip = -0.042;
+    for (const p of REFRACTION_PRESETS.filter((x) => x.on)) {
+      const limb = (trueAlt) => {
+        const d = apparentDiscDeg(trueAlt, theta, p.conditions);
+        return d.apparentCentreAltDeg + d.verticalDeg / 2;
+      };
+      const atLimit = limb(MONOTONIC_LIMIT.trueDeg);
+      note(p.label, `upper limb ${atLimit.toFixed(3)} deg at the formula's limit`);
+      lessThan(atLimit, dip, `${p.id}: Sun is already below the horizon by the limit`);
+    }
   });
 
   test('no amount of refraction widens the disc: width is exactly untouched', () => {
-    // The whole reason refraction cannot rescue the flat model. However hard it
-    // is pushed, and however far below the horizon the Sun goes, it compresses
-    // the height and leaves the width alone.
+    // The whole reason refraction cannot rescue the flat model, and the reason
+    // mirage conditions do not need modelling to be answered: refraction is a
+    // function of altitude alone, so it can compress the disc's height and can
+    // never touch its width. That holds for any such function, which is why
+    // the scale multiplier is pushed to x4 below even though no preset uses it.
     //
-    // The below-horizon altitudes here matter: without the monotonic clamp in
+    // The below-horizon altitudes matter too: without the monotonic clamp in
     // refraction.js, the Saemundsson formula turns over near -1.9 deg and
     // refracts the upper limb more than the lower, which stretched the disc to
-    // 75 arcmin tall against a 32 arcmin width. The app's timeline reaches
-    // those altitudes, so the test has to as well.
+    // 75 arcmin tall against a 32 arcmin width.
     const theta = 0.5311;
     for (const p of REFRACTION_PRESETS.filter((x) => x.on)) {
       for (const alt of [45, 20, 5, 1, 0, -0.5, -1, -1.9, -2.5, -3.5, -4]) {
@@ -632,9 +646,26 @@ suite('Refraction settings', () => {
         lessThan(d.verticalDeg, theta + 1e-12, `${p.id} at ${alt} deg: height`);
       }
     }
-    const extreme = apparentDiscDeg(0, theta, { scale: 4 });
-    note('at x4 refraction on the horizon', `height ${(extreme.flattening * 100).toFixed(1)} % of width`);
-    lessThan(extreme.flattening, 0.6, 'a x4 disc is squashed hard');
+    // Width-invariance is the theorem and holds at any strength. Squashing
+    // holds while the refraction gradient is shallower than 1 arcmin per
+    // arcmin; past that the lower limb overtakes the upper one and the image
+    // turns over. That is a mirage, it is real, and these formulae cannot say
+    // where it happens -- so the code flags it rather than reporting a
+    // negative height, and no preset goes near it.
+    for (const scale of [2, 4, 8]) {
+      const extreme = apparentDiscDeg(0, theta, { scale });
+      note(`at x${scale} refraction on the horizon`,
+        `height ${(extreme.flattening * 100).toFixed(1)} % of width` +
+        (extreme.inverted ? ', image inverted' : ''));
+      approx(extreme.horizontalDeg, theta, 0, `x${scale}: width still exact`);
+      greaterThan(extreme.verticalDeg, 0, `x${scale}: height is a real height`);
+      if (scale <= 4) {
+        assert(!extreme.inverted, `x${scale}: not inverted`);
+        lessThan(extreme.verticalDeg, theta, `x${scale}: height squashed`);
+      } else {
+        assert(extreme.inverted, `x${scale}: steep enough to invert the image`);
+      }
+    }
   });
 
   test('refraction never falls as the Sun sinks: it saturates instead', () => {

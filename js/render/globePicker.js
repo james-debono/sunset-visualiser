@@ -18,6 +18,8 @@ export const LOCATION_PRESETS = Object.freeze([
   { name: 'Singapore', latDeg: 1.35, lonDeg: 103.82 },
   { name: 'Sydney', latDeg: -33.87, lonDeg: 151.21 },
   { name: 'Melbourne', latDeg: -37.81, lonDeg: 144.96 },
+  { name: 'Belen, NM', latDeg: 34.66, lonDeg: -106.78 },
+  { name: 'Los Angeles', latDeg: 34.05, lonDeg: -118.24 },
   { name: 'New York', latDeg: 40.71, lonDeg: -74.01 },
   { name: 'London', latDeg: 51.51, lonDeg: -0.13 },
   { name: 'Reykjavík', latDeg: 64.13, lonDeg: -21.90 },

@@ -13,6 +13,7 @@ import { buildScenario, summarise } from './physics/scenario.js';
 import { makeFlatModel, minimumHeightForImperceptibleShrink } from './physics/flat.js';
 import {
   apparentDiscDeg, apparentHorizonDipDeg, refractionFromTrueDeg, REFRACTION_PRESETS,
+  MONOTONIC_LIMIT,
 } from './physics/refraction.js';
 import {
   COMMON_FOCAL_LENGTHS_MM, defaultFraming, verticalFovDeg, pitchForHorizonFractionDeg,
@@ -37,10 +38,10 @@ const $ = (id) => document.getElementById(id);
 // rather than `const`. Every reference elsewhere reads them at call time.
 // -----------------------------------------------------------------------------
 
-/** The timeline runs 15 minutes past geometric sunset. That is long enough for
- *  the disc to set under any refraction preset, including the x4 mirage, which
- *  lifts it by nearly 3 deg. Fixed rather than following the current preset, so
- *  changing refraction never rescales the charts underneath you. */
+/** The timeline runs 15 minutes past geometric sunset, which is comfortably
+ *  past the point where the disc has gone under any refraction preset. Fixed
+ *  rather than following the current preset, so changing refraction never
+ *  rescales the charts underneath you. */
 const TIMELINE_TAIL_H = 15 / 60;
 
 const HEIGHT_MIN_KM = 100;
@@ -108,6 +109,7 @@ function rebuildSession() {
   }));
 
   state.t = Math.min(T1, Math.max(T0, state.t));
+  $('scrub').max = String(Math.round((T1 - T0) * 3600));
   rebuildFlat();
   recomputeMinHeight();
 }
@@ -123,7 +125,7 @@ const state = {
   t: 15,
   playing: false,
   speed: 600,
-  units: 'metric',
+  units: 'both',
   /**
    * One of REFRACTION_PRESETS. Standard air by default: real sunsets happen in
    * an atmosphere, and the comparison does not depend on it either way.
@@ -290,12 +292,20 @@ function apparent(trueAltDeg, diameterDeg) {
  */
 function cameraRows(sample, app, startDiameterDeg, sizeDecimals) {
   const rows = [['Angular diameter', formatAngularSize(sample.angularDiameterDeg), true]];
-  if (state.refraction.on) {
+  const modelled = sample.altitudeDeg >= MONOTONIC_LIMIT.trueDeg;
+  if (state.refraction.on && modelled) {
     rows.push(['Apparent W × H', `${arcmin(app.hR * 2)} × ${arcmin(app.vR * 2)}`]);
     rows.push(['Refraction lift', `+${arcmin(app.lift)}`]);
+  } else if (state.refraction.on) {
+    // Far below the horizon the formulae are out of range, so say so rather
+    // than quote a number the code cannot stand behind.
+    rows.push(['Refraction', 'not modelled this low']);
   }
   rows.push(['Size vs start', pct(sample.angularDiameterDeg / startDiameterDeg, sizeDecimals)]);
-  rows.push([state.refraction.on ? 'Altitude (apparent)' : 'Altitude', deg(app.alt, 2)]);
+  rows.push([
+    state.refraction.on && modelled ? 'Altitude (apparent)' : 'Altitude',
+    deg(state.refraction.on && modelled ? app.alt : sample.altitudeDeg, 2),
+  ]);
   return rows;
 }
 
@@ -621,7 +631,6 @@ $('restart').addEventListener('click', () => { seek(T0); });
 
 // Scrubber, in seconds from the start.
 const scrub = $('scrub');
-scrub.max = String(Math.round((T1 - T0) * 3600));
 scrub.addEventListener('input', () => seek(T0 + Number(scrub.value) / 3600));
 
 function buildScrubTicks() {
