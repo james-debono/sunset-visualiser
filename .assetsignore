@@ -1,0 +1,8 @@
+# Files in this repo that are not part of the website. Cloudflare publishes
+# everything in the assets folder unless it is listed here.
+.git
+.gitignore
+.gitattributes
+.assetsignore
+.nojekyll
+wrangler.jsonc

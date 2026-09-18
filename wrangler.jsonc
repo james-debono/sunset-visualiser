@@ -1,0 +1,9 @@
+// Cloudflare hosting. The site is plain static files with no build step, so
+// this only tells Cloudflare which folder to serve: the repo root.
+{
+  "name": "sunset-visualiser",
+  "compatibility_date": "2026-09-18",
+  "assets": {
+    "directory": "."
+  }
+}
