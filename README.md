@@ -1,6 +1,6 @@
 # Sunset Visualiser
 
-**The Sun keeps the same size all the way down. On a flat Earth it could not.**
+**A flat Earth predicts a Sun that shrinks as it sets. A globe predicts one that doesn't.**
 
 An interactive, side-by-side model of a sunset on a spherical Earth and on a flat one. It starts three hours before sunset, with both Suns identical in size and position, and lets you watch what each model predicts.
 
