@@ -79,7 +79,7 @@ tests/
 
 An observer on the equator at the September 2026 equinox, eye height 1.7 m, from 15:00 to sunset at 18:00 apparent solar time, with the timeline running 15 minutes past. This is the cleanest case, since the Sun sets straight down at exactly 15° per hour. It is also the case where the subsolar point moves fastest, which favours the flat model.
 
-The picker moves the observer anywhere up to 80° of latitude. Latitude changes the numbers but not the conclusion: at 80°, where the Sun only creeps down a shallow slope, the flat Sun still loses more than a quarter of its width while the real one changes by 0.06 arcseconds.
+The picker moves the observer anywhere up to 80° of latitude, and the date anywhere in the calendar. Latitude changes the numbers but not the conclusion: at 80°, where the Sun only creeps down a shallow slope, the flat Sun still loses more than a quarter of its width while the real one changes by 0.06 arcseconds. Dates and places with no sunset at all are refused rather than half-drawn.
 
 Every setting lives in the URL, so a particular moment is a link you can send someone.
 

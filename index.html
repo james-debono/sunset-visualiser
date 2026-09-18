@@ -28,7 +28,7 @@
           <span id="location-label">Equator</span>
         </button>
         <div class="popover" id="location-panel" hidden>
-          <h3>Where are you standing?</h3>
+          <h3>Where, and when?</h3>
           <canvas id="location-globe" width="240" height="240"
                   aria-label="Globe. Drag to spin it, click to choose a location."></canvas>
           <div class="fields">
@@ -36,9 +36,13 @@
             <label>Lon <input type="number" id="lon-input" min="-180" max="180" step="0.01"><span class="unit">&deg;E</span></label>
           </div>
           <div class="presets" id="location-presets"></div>
-          <p class="hint">The date stays at the September equinox. Beyond 80&deg; the
-          Sun barely climbs at an equinox and the whole window is twilight, so the
-          picker stops there.</p>
+          <div class="fields">
+            <label>Date <input type="date" id="date-input" min="2020-01-01" max="2040-12-31"></label>
+          </div>
+          <div class="presets" id="date-presets"></div>
+          <p class="hint" id="picker-note">Beyond 80&deg; of latitude the Sun barely
+          climbs at an equinox and the whole window is twilight, so the picker stops
+          there. Some dates have no sunset at all at high latitude; those are refused.</p>
         </div>
       </div>
       <div role="group" aria-label="Units">

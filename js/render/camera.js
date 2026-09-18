@@ -146,22 +146,35 @@ function paintSky(ctx, x, y, w, h, cam, cx, cy, yawDeg, sunAlt, elevBottom, elev
  */
 function paintGlow(ctx, sx, sy, frameH, sunAlt, fluxRatio) {
   const [, glow] = sunRamp(sunAlt);
-  const low = 1 - clamp01(sunAlt / 25);           // warmer, softer glare low down
   const f = Math.max(1e-5, clamp01(fluxRatio));
-  const size = Math.cbrt(f);
-  const alpha = 0.55 + 0.45 * size;
+  // Veiling glare falls off as roughly the inverse square of angle
+  // (Stiles-Holladay), so the radius at which it drops below a fixed
+  // visibility threshold goes as the square root of the flux.
+  const size = Math.sqrt(f);
+  // Held constant: a camera and an eye both re-expose as the scene darkens, so
+  // what a person sees is the glare contracting, not dimming. Any altitude
+  // term here would fight the flux and make it grow towards sunset.
+  const alpha = 1;
 
-  const wideR = frameH * (0.05 + 1.7 * size);
-  const wide = ctx.createRadialGradient(sx, sy, 0, sx, sy, wideR);
-  wide.addColorStop(0, rgba(glow, (0.30 + 0.34 * low) * alpha));
-  wide.addColorStop(0.35, rgba(glow, (0.11 + 0.15 * low) * alpha));
-  wide.addColorStop(1, rgba(glow, 0));
-  ctx.fillStyle = wide;
-  ctx.fillRect(sx - wideR, sy - wideR, wideR * 2, wideR * 2);
+  // A broad, faint haze over the sky. Deliberately weak: its apparent extent
+  // is governed by contrast with the sky rather than by its own radius, so it
+  // would otherwise look as though it grew towards sunset as the sky darkened.
+  const hazeR = frameH * (0.03 + 1.9 * size);
+  const haze = ctx.createRadialGradient(sx, sy, 0, sx, sy, hazeR);
+  haze.addColorStop(0, rgba(glow, 0.17 * alpha));
+  haze.addColorStop(0.35, rgba(glow, 0.06 * alpha));
+  haze.addColorStop(1, rgba(glow, 0));
+  ctx.fillStyle = haze;
+  ctx.fillRect(sx - hazeR, sy - hazeR, hazeR * 2, hazeR * 2);
 
-  const r = frameH * (0.006 + 0.17 * size);
+  // The glare proper: a defined ball of light with an edge, so what shrinks is
+  // legible as a size rather than as a fade. This is the thing people watch
+  // and call the Sun.
+  const r = frameH * (0.004 + 0.22 * size);
   const core = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
-  core.addColorStop(0, rgba(glow, 0.6 * alpha));
+  core.addColorStop(0, rgba(glow, 0.80 * alpha));
+  core.addColorStop(0.45, rgba(glow, 0.62 * alpha));
+  core.addColorStop(0.8, rgba(glow, 0.14 * alpha));
   core.addColorStop(1, rgba(glow, 0));
   ctx.fillStyle = core;
   ctx.fillRect(sx - r, sy - r, r * 2, r * 2);

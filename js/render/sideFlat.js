@@ -33,7 +33,8 @@ function niceStep(raw) {
 /** Side of the plan-view inset, and 0 when there is no inset to draw. */
 export function planInsetSize(W, H, plan) {
   if (!plan) return 0;
-  return Math.round(Math.max(96, Math.min(160, Math.min(W * 0.26, H * 0.62))));
+  const wanted = Math.max(plan.size || 0, 130);
+  return Math.round(Math.max(110, Math.min(wanted, H - 16, W * 0.42)));
 }
 
 export function flatSideLayout(W, H, v) {
@@ -239,22 +240,25 @@ export function drawFlatSide(stage, v, t) {
 /**
  * Plan view of the flat-Earth map, drawn only for the Gleason path.
  *
- * Looking down on the disc: the north pole at the centre, the observer on his
- * own circle, and the Sun going round a circle of its own once a day. It is
- * here because the elevation view beside it cannot show the one thing this
- * model gets most obviously wrong -- the Sun does not recede in a straight
- * line, it swings around, and by sunset its bearing is 45 degrees away from
- * where the Sun actually sets.
+ * The whole disc as these maps print it: north pole at the centre, the equator
+ * halfway out, and the south pole smeared around the rim. On top of that go
+ * the Sun's daily circle, the observer, and the line between them.
  *
- * The observer is drawn at the bottom of his circle so that the pole is
- * "up the page", the way the map is normally printed.
+ * It is here because the elevation view beside it cannot show the thing this
+ * model gets most obviously wrong: the Sun does not recede in a straight line,
+ * it swings around, and by sunset its bearing is tens of degrees away from
+ * where the Sun is actually seen to set.
+ *
+ * The observer sits at the bottom of the disc so the pole is up the page.
  */
 function drawPlanInset(ctx, W, H, plan, t) {
   const S = planInsetSize(W, H, plan);
-  const x = W - S - 12, y = 12;
+  const x = W - S - 12, y = Math.round((H - S) / 2);
   const cx = x + S / 2, cy = y + S / 2;
-  const pad = 26;
-  const scale = (S / 2 - pad) / (Math.max(plan.observerRadiusKm, plan.sunRadiusKm) * 1.06);
+  const pad = 18;
+  // Always scaled to the whole disc, so the map looks the same wherever the
+  // observer stands and the rim means what it means on the printed map.
+  const scale = (S / 2 - pad) / plan.rimRadiusKm;
 
   // Map angle 0 is the observer's meridian; put it at the bottom of the inset.
   const at = (radiusKm, angleDeg) => {
@@ -269,15 +273,28 @@ function drawPlanInset(ctx, W, H, plan, t) {
   ctx.fill();
   ctx.clip();
 
-  // The observer's own circle, and the Sun's.
-  ctx.strokeStyle = t.grid;
+  // The disc itself, then the equator, then the Sun's circle.
+  ctx.fillStyle = t['earth-day'];
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, plan.rimRadiusKm * scale, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = t['ink-2'];
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, plan.rimRadiusKm * scale, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = t.axis;
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.arc(cx, cy, plan.observerRadiusKm * scale, 0, Math.PI * 2);
+  ctx.arc(cx, cy, plan.equatorRadiusKm * scale, 0, Math.PI * 2);
   ctx.stroke();
 
   ctx.setLineDash([3, 3]);
-  ctx.strokeStyle = t.axis;
+  ctx.strokeStyle = t.muted;
   ctx.beginPath();
   ctx.arc(cx, cy, plan.sunRadiusKm * scale, 0, Math.PI * 2);
   ctx.stroke();
@@ -309,7 +326,9 @@ function drawPlanInset(ctx, W, H, plan, t) {
   ctx.fillStyle = t.sun;
   ctx.beginPath(); ctx.arc(sun.x, sun.y, 4, 0, Math.PI * 2); ctx.fill();
 
-  haloText(ctx, 'N', cx, cy - 6, { fill: t.muted, halo: t.surface, align: 'center', size: 9.5 });
+  haloText(ctx, 'N', cx + 6, cy + 3, { fill: t.muted, halo: t['earth-day'], align: 'left', size: 9.5 });
+  haloText(ctx, 'equator', cx, cy - plan.equatorRadiusKm * scale - 4,
+    { fill: t.muted, halo: t['earth-day'], align: 'center', size: 9 });
   haloText(ctx, 'you', obs.x, obs.y + 13, { fill: t['ink-2'], halo: t.surface, align: 'center', size: 9.5 });
   const sunRight = sun.x < cx;
   haloText(ctx, 'Sun', sun.x + (sunRight ? 7 : -7), sun.y + 3,

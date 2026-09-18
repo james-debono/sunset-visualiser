@@ -175,8 +175,8 @@
     <li>Distances are in km, times in hours, and angles in degrees unless stated.</li>
     <li><strong>Time is apparent solar time</strong>: the Sun is due south or north at 12:00. The hour angle is <i>H</i> = 15&deg; &times; (<i>t</i> &minus; 12).</li>
     <li><strong>Earth is a sphere</strong> of radius equal to the equatorial radius. In the default scenario the subsolar point runs along the equator, where that radius is exact. Oblateness is covered in <a href="#simplifications">&sect;10</a>.</li>
-    <li><strong>Default scenario</strong>: an observer on the equator (0&deg;, 0&deg;), eye height 1.7 m, on 23 September 2026, the day of the September equinox. The window runs from three hours before geometric sunset (15:00) to sunset (18:00), and the timeline carries on 15 minutes past it so the disc can be seen to go.</li>
-    <li><strong>The location picker</strong> moves the observer anywhere up to 80&deg; of latitude; the date stays at the equinox. Every figure below is for the default equatorial case unless it says otherwise. Latitude changes the numbers but not the conclusion (&sect;6.8).</li>
+    <li><strong>Default scenario</strong>: an observer on the equator (0&deg;, 0&deg;), eye height 1.7 m, on 23 September 2026, the day of the September equinox. The window runs from three hours before geometric sunset (15:00) to sunset (18:00), and the timeline carries on far enough for the disc to go: 5 minutes at the equator, longer nearer the poles where the Sun slides down at a shallower angle.</li>
+    <li><strong>Place and date are both adjustable</strong>, up to 80&deg; of latitude. Combinations with no sunset at all are refused rather than half-drawn. Every figure below is for the default equatorial equinox case unless it says otherwise; latitude and date change the numbers but not the conclusion (&sect;6.8).</li>
   </ul>
 
   <!-- 2 ------------------------------------------------------------------ -->
@@ -601,7 +601,9 @@
     <p>The disc inside it never moved. That is what the loupe on this page is for: the wide view shows the glare shrinking, and the magnified view beside it shows the disc against a dashed ring at its starting size, unchanged. If you have ever watched a sunset and felt the Sun get smaller, this is almost certainly what you were watching.</p>
   </div>
 
-  <p><strong>Where the physics stops and the drawing starts.</strong> The flux is computed. Turning it into a radius is not: glare in an eye or a lens falls off roughly as the inverse cube of angle, so the radius at which it drops below a fixed visibility threshold goes as the cube root of the flux, and that is the rule the renderer uses. Opacity is held nearly constant, because both eye and camera re-expose as the scene darkens. It is a plausible rule, not a scattering model, and the flat and globe panes use the identical one.</p>
+  <p><strong>Where the physics stops and the drawing starts.</strong> The flux is computed. Turning it into a radius is not. Veiling glare in an eye or a lens falls off roughly as the inverse square of angle &mdash; the Stiles&ndash;Holladay form &mdash; so the radius at which it drops below a fixed visibility threshold goes as the square root of the flux, and that is the rule the renderer uses. Opacity is held constant, because both eye and camera re-expose as the scene darkens; anything else would make the glare fade rather than contract, and an altitude term would make it appear to <em>grow</em> towards sunset as the sky went dark behind it. It is a plausible rule, not a scattering model, and both panes use the identical one.</p>
+
+  <p>The progression is not linear, and should not be: from 45&deg; down to about 18&deg; the glare barely changes, because the air in the way has barely changed. Almost all of the collapse happens in the last few degrees, which is exactly when people say the Sun looks like it is shrinking.</p>
 
   <!-- 9 ------------------------------------------------------------------ -->
   <h2 id="decorative"><span class="n">9</span>What is decorative</h2>

@@ -10,7 +10,9 @@
 import { AU_KM, KM_PER_MILE, DEG, RAD, milesToKm, kmToMiles, norm180, norm360 } from './physics/constants.js';
 
 import { buildScenario, summarise } from './physics/scenario.js';
-import { R_EARTH_KM } from './physics/solar.js';
+import {
+  R_EARTH_KM, hourAngleAtAltitude, solarTimeFromHourAngle,
+} from './physics/solar.js';
 import { makeFlatModel, minimumHeightForImperceptibleShrink } from './physics/flat.js';
 import { fluxRatio, airmass } from './physics/extinction.js';
 import {
@@ -40,17 +42,25 @@ const $ = (id) => document.getElementById(id);
 // rather than `const`. Every reference elsewhere reads them at call time.
 // -----------------------------------------------------------------------------
 
-/** The timeline runs 15 minutes past geometric sunset, which is comfortably
- *  past the point where the disc has gone under any refraction preset. Fixed
- *  rather than following the current preset, so changing refraction never
- *  rescales the charts underneath you. */
-const TIMELINE_TAIL_H = 15 / 60;
+/**
+ * How far past geometric sunset the timeline runs.
+ *
+ * Five minutes is enough at the equator: the disc has fully gone about 5.2
+ * minutes after the Sun's centre crosses the horizon, under any of the
+ * refraction presets. Nearer the poles the Sun slides down at a shallow angle
+ * and takes far longer, so the tail follows the time for the centre to reach
+ * 1.3 degrees down, bounded either side. Fixed against the refraction setting,
+ * so changing it never rescales the charts underneath you.
+ */
+const TIMELINE_TAIL_MIN_H = 5 / 60;
+const TIMELINE_TAIL_MAX_H = 30 / 60;
+const DISC_GONE_ALT_DEG = -1.3;
 
 const HEIGHT_MIN_KM = 100;
 const HEIGHT_MAX_KM = 500000;
 
 let scenario, globe, cfg, declinationDeg;
-let T0, TS, T1, START, CAMERA_YAW, FRAMING;
+let T0, TS, T1, START, CAMERA_YAW, FLAT_YAW, FRAMING;
 let times, globeSeries, hourMarks, globeMarks;
 
 const SAMPLE_STEP_H = 30 / 3600;
@@ -66,13 +76,22 @@ const toArcsecPerMin = (degPerHour) => degPerHour * 60;   // deg/h -> arcsec/min
  * the sideways swing as well as the drop.
  */
 function rebuildSession() {
-  scenario = buildScenario({ latDeg: state.latDeg, lonDeg: state.lonDeg });
+  scenario = buildScenario({
+    latDeg: state.latDeg,
+    lonDeg: state.lonDeg,
+    date: new Date(`${state.dateISO}T00:00:00Z`),
+  });
   globe = scenario.globe;
   cfg = scenario.config;
   declinationDeg = scenario.declinationDeg;
   T0 = scenario.startSolarTime;
   TS = scenario.sunsetSolarTime;
-  T1 = TS + TIMELINE_TAIL_H;
+  const hGone = hourAngleAtAltitude(state.latDeg, declinationDeg, DISC_GONE_ALT_DEG);
+  const gone = hGone != null ? solarTimeFromHourAngle(hGone) : TS + TIMELINE_TAIL_MIN_H;
+  T1 = Math.min(
+    Math.max(gone, TS + TIMELINE_TAIL_MIN_H),
+    TS + TIMELINE_TAIL_MAX_H,
+  );
   START = globe.sample(T0);
 
   // Mean bearing of the Sun across the window, as a direction rather than an
@@ -124,6 +143,7 @@ const state = {
   latDeg: 0,
   lonDeg: 0,
   locationLabel: 'Equator',
+  dateISO: '2026-09-23',
   t: 15,
   playing: false,
   speed: 600,
@@ -159,6 +179,21 @@ function rebuildFlat() {
     globe, startSolarTime: T0, heightKm: state.heightKm, anchor: state.anchor,
     declinationDeg, path: state.path,
   });
+
+  // The flat pane faces the middle of its own Sun's travel, so the start and
+  // end of the window sit either side of centre. On the local plane the Sun
+  // holds one bearing and this is simply that bearing; on the map it swings,
+  // and facing the globe Sun's bearing would walk it off the right of frame.
+  FLAT_YAW = state.path === 'gleason'
+    ? meanBearingDeg(state.flat.map.bearingDeg(T0), state.flat.map.bearingDeg(T1))
+    : START.azimuthDeg;
+}
+
+/** Midpoint of two compass bearings, taken as directions rather than numbers. */
+function meanBearingDeg(a, b) {
+  const x = Math.cos(a * DEG) + Math.cos(b * DEG);
+  const y = Math.sin(a * DEG) + Math.sin(b * DEG);
+  return norm360(Math.atan2(y, x) * RAD);
 }
 
 function recomputeMinHeight() {
@@ -368,7 +403,7 @@ function render() {
     startApparentAltDeg: f0App.alt,
   });
   drawCamera(stages.flatCamera, {
-    focalMm: state.focalMm, horizonFraction: FRAMING.horizonFraction, yawDeg: CAMERA_YAW,
+    focalMm: state.focalMm, horizonFraction: FRAMING.horizonFraction, yawDeg: FLAT_YAW,
     sunAltDeg: fApp.alt, sunAzDeg: flatBearing, sunHRadiusDeg: fApp.hR, sunVRadiusDeg: fApp.vR,
     ghostRadiusDeg: f0.angularDiameterDeg / 2,
     fluxRatio: flatFlux,
@@ -423,8 +458,11 @@ function render() {
     plan: state.path === 'gleason' ? {
       observerRadiusKm: flat.map.observerRadiusKm,
       sunRadiusKm: flat.map.sunRadiusKm,
+      equatorRadiusKm: flat.map.equatorRadiusKm,
+      rimRadiusKm: flat.map.rimRadiusKm,
       hourAngleDeg: g.hourAngleDeg,
       startHourAngleDeg: START.hourAngleDeg,
+      size: flatReadout.offsetHeight,
     } : null,
   };
   const flatRows = (layout) => {
@@ -437,10 +475,12 @@ function render() {
       ['Line of sight', dist(f.distanceKm, 4)],
     );
     if (state.path === 'gleason') {
-      rows.push(['Bearing to Sun (map)', `${deg(flat.map.bearingDeg(t), 1)}`]);
-      rows.push(['Bearing measured', deg(g.azimuthDeg, 1)]);
-      rows.push(['Equator on this map', dist(flat.map.equatorLengthKm, 5)]);
-      rows.push(['Equator measured', dist(2 * Math.PI * R_EARTH_KM, 5)]);
+      // Paired with the measured value, because the gap is the point.
+      rows.push(['Bearing: map vs measured',
+        `${deg(flat.map.bearingDeg(t), 0)} vs ${deg(g.azimuthDeg, 0)}`]);
+      rows.push(['Equator: map vs measured',
+        `${Math.round(flat.map.equatorLengthKm).toLocaleString()} vs ` +
+        `${Math.round(2 * Math.PI * R_EARTH_KM).toLocaleString()} km`]);
     } else if (state.anchor === 'elevation') {
       rows.push(['Start: point below Sun', dist(flat.startHorizontalKm, 4)]);
       rows.push(['Start: real subsolar point', dist(flat.measuredGroundDistanceKm, 4)]);
@@ -454,6 +494,9 @@ function render() {
   fillReadout(flatReadout, flatRows(flatSideLayout(stages.flatSide.width, stages.flatSide.height, flatView)));
   flatView.reserveLeft = readoutReserve(flatReadout);
   fillReadout(flatReadout, flatRows(flatSideLayout(stages.flatSide.width, stages.flatSide.height, flatView)));
+  // The inset is sized to match the readout beside it, which is only measurable
+  // once this frame's rows are in place.
+  if (flatView.plan) flatView.plan.size = flatReadout.offsetHeight;
   drawFlatSide(stages.flatSide, flatView, tokens);
 
   // --- Charts
@@ -470,9 +513,9 @@ function render() {
   if (document.activeElement !== scrub) scrub.value = String(Math.round((t - T0) * 3600));
   scrub.setAttribute('aria-valuetext', `${formatSolarTime(t)}, ${relativeToSunset(t)}`);
 
-  const lensText = `${state.focalMm} mm · ${vfov.toFixed(1)}° vertical · facing ${Math.round(CAMERA_YAW)}°`;
-  $('globe-camera-meta').textContent = lensText;
-  $('flat-camera-meta').textContent = lensText;
+  const lens = `${state.focalMm} mm · ${vfov.toFixed(1)}° vertical`;
+  $('globe-camera-meta').textContent = `${lens} · facing ${Math.round(CAMERA_YAW)}°`;
+  $('flat-camera-meta').textContent = `${lens} · facing ${Math.round(FLAT_YAW)}°`;
 }
 
 function renderCompare(g, f, f0, gApp, fApp, gFlux, fFlux) {
@@ -879,40 +922,99 @@ function locationName(lat, lon) {
 function changeLocation(latDeg, lonDeg) {
   const lat = Math.max(-MAX_LATITUDE, Math.min(MAX_LATITUDE, latDeg));
   const lon = norm180(lonDeg);
+  applyScenarioChange(() => {
+    state.latDeg = lat;
+    state.lonDeg = lon;
+    state.locationLabel = locationName(lat, lon);
+  });
+}
 
-  // Hold position through the window, so changing location at sunset keeps you
-  // at sunset rather than throwing you back to the start.
+const DATE_PRESETS = [
+  { name: 'March equinox', iso: '2026-03-20' },
+  { name: 'June solstice', iso: '2026-06-21' },
+  { name: 'September equinox', iso: '2026-09-23' },
+  { name: 'December solstice', iso: '2026-12-21' },
+];
+
+/**
+ * Change the date. Declination moves, so sunset time, the Sun's path and the
+ * subsolar speed all move with it. Some combinations of date and latitude have
+ * no sunset at all, and those are refused rather than half-drawn.
+ */
+function changeDate(iso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso) || Number.isNaN(Date.parse(`${iso}T00:00:00Z`))) {
+    syncDateControls();
+    return;
+  }
+  applyScenarioChange(() => { state.dateISO = iso; });
+}
+
+/**
+ * Apply a change to the scenario, and put it back if the result is a day with
+ * no sunset. Holds position through the window, so changing date or place at
+ * sunset leaves you at sunset.
+ */
+function applyScenarioChange(mutate) {
   const fraction = (state.t - T0) / (T1 - T0);
-  const previous = { lat: state.latDeg, lon: state.lonDeg };
-
-  state.latDeg = lat;
-  state.lonDeg = lon;
+  const previous = { lat: state.latDeg, lon: state.lonDeg, date: state.dateISO };
+  mutate();
   try {
     rebuildSession();
   } catch (err) {
-    // Somewhere with no sunset on this date. Put it back rather than showing
-    // a half-built scenario.
     state.latDeg = previous.lat;
     state.lonDeg = previous.lon;
+    state.dateISO = previous.date;
     rebuildSession();
+    setPickerNote('No sunset there on that date \u2014 the Sun never crosses the horizon. Try another date or latitude.');
     syncLocationControls();
+    syncDateControls();
     return;
   }
   state.t = T0 + fraction * (T1 - T0);
-  state.locationLabel = locationName(lat, lon);
+  setPickerNote(null);
 
   syncLocationControls();
+  syncDateControls();
   syncFocal();
   buildPresets();
   buildScrubTicks();
   syncSpeed();
-  $('scrub').max = String(Math.round((T1 - T0) * 3600));
   renderScenarioLine();
   updateCharts();
   renderVerdict();
   writeState();
   requestRender();
 }
+
+const DEFAULT_PICKER_NOTE = $('picker-note').textContent;
+function setPickerNote(text) {
+  const el = $('picker-note');
+  el.textContent = text ?? DEFAULT_PICKER_NOTE;
+  el.style.color = text ? 'var(--flat)' : '';
+}
+
+function syncDateControls() {
+  $('date-input').value = state.dateISO;
+  for (const b of $('date-presets').querySelectorAll('button')) {
+    b.setAttribute('aria-pressed', String(b.dataset.iso === state.dateISO));
+  }
+}
+
+function buildDatePresets() {
+  const el = $('date-presets');
+  el.replaceChildren();
+  for (const d of DATE_PRESETS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = d.name;
+    b.dataset.iso = d.iso;
+    b.addEventListener('click', () => changeDate(d.iso));
+    el.appendChild(b);
+  }
+  syncDateControls();
+}
+
+$('date-input').addEventListener('change', (e) => changeDate(e.target.value));
 
 function syncLocationControls() {
   $('location-label').textContent = state.locationLabel;
@@ -999,6 +1101,7 @@ function writeState() {
   requestAnimationFrame(() => {
     writeStateQueued = false;
     const p = new URLSearchParams({
+      d: state.dateISO,
       lat: state.latDeg.toFixed(3),
       lon: state.lonDeg.toFixed(3),
       t: state.t.toFixed(4),
@@ -1022,6 +1125,11 @@ function readState() {
     const v = Number(p.get(key));
     return p.has(key) && Number.isFinite(v) ? v : null;
   };
+
+  const d = p.get('d');
+  if (d && /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`))) {
+    state.dateISO = d;
+  }
 
   const lat = num('lat'), lon = num('lon');
   if (lat !== null) state.latDeg = Math.max(-MAX_LATITUDE, Math.min(MAX_LATITUDE, lat));
@@ -1054,6 +1162,7 @@ readState();
 rebuildSession();
 buildRefractionOptions();
 buildLocationPresets();
+buildDatePresets();
 syncLocationControls();
 buildPresets();
 buildScrubTicks();

@@ -189,6 +189,9 @@ export function makeFlatModel(cfg) {
     map: {
       observerRadiusKm: rObs,
       sunRadiusKm: rSun,
+      equatorRadiusKm: aeRadiusKm(0),
+      /** The rim of the disc: the south pole, smeared all the way round it. */
+      rimRadiusKm: aeRadiusKm(-90),
       equatorLengthKm: aeEquatorLengthKm(),
       distanceKm: mapDistanceKm,
       bearingDeg: mapBearingDeg,
