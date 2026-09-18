@@ -173,7 +173,9 @@ a:hover { color: var(--ink); text-decoration-color: currentColor; }
 
 .globals nav {
   display: flex;
-  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
   font-size: 12px;
 }
 

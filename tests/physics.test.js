@@ -900,6 +900,29 @@ suite('Flat model on the Gleason map', () => {
     greaterThan(gleason.horizontalKm(18), straight.horizontalKm(18), 'further than the steelman');
   });
 
+  test('the Sun goes round the map westward, which is clockwise from above', () => {
+    // Which way round matters, because the plan-view inset draws it. Longitude
+    // east of the observer falls steadily: the Sun moves west, as anyone can
+    // watch it do. Seen from above the north pole, eastward runs
+    // counter-clockwise, so westward travel is clockwise on the disc.
+    let previous = Infinity;
+    for (let h = 15; h <= 18.001; h += 0.25) {
+      const lon = gleason.map.sunLongitudeDeg(h);
+      lessThan(lon, previous, `longitude falling at ${h.toFixed(2)} h`);
+      previous = lon;
+    }
+    note('Sun longitude at 15:00', `${gleason.map.sunLongitudeDeg(15).toFixed(1)} deg east of you`);
+    note('Sun longitude at sunset', `${gleason.map.sunLongitudeDeg(18).toFixed(1)} deg`);
+    approx(gleason.map.sunLongitudeDeg(18), -90, 0.3, 'a quarter turn west by sunset');
+
+    // And the drawing has to agree with the bearing readout: west of the
+    // observer for the whole window, never east.
+    for (const h of [15, 16, 17, 18]) {
+      greaterThan(gleason.map.bearingDeg(h), 180, `west of you at ${h}:00`);
+      lessThan(gleason.map.bearingDeg(h), 360, `west of you at ${h}:00`);
+    }
+  });
+
   test('the map puts the Sun in the wrong part of the sky, by a lot', () => {
     // At an equinox on the equator the Sun sets due west. Anyone can check
     // this with a compass, or with the shadow of a stick.

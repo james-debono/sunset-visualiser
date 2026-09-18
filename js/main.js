@@ -460,8 +460,8 @@ function render() {
       sunRadiusKm: flat.map.sunRadiusKm,
       equatorRadiusKm: flat.map.equatorRadiusKm,
       rimRadiusKm: flat.map.rimRadiusKm,
-      hourAngleDeg: g.hourAngleDeg,
-      startHourAngleDeg: START.hourAngleDeg,
+      sunLonDeg: flat.map.sunLongitudeDeg(t),
+      startSunLonDeg: flat.map.sunLongitudeDeg(T0),
       size: flatReadout.offsetHeight,
     } : null,
   };

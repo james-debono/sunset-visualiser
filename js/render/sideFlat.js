@@ -16,7 +16,7 @@
  * position, and the line of sight to its centre, are never adjusted.
  */
 
-import { haloText, font } from './stage.js';
+import { haloText, font, arrowHead } from './stage.js';
 
 const D2R = Math.PI / 180;
 
@@ -275,9 +275,17 @@ function drawPlanInset(ctx, W, H, plan, t) {
   // observer stands and the rim means what it means on the printed map.
   const scale = (S / 2 - pad) / plan.rimRadiusKm;
 
-  // Map angle 0 is the observer's meridian; put it at the bottom of the inset.
-  const at = (radiusKm, angleDeg) => {
-    const a = (angleDeg + 90) * D2R;
+  /**
+   * Place a point by its longitude relative to the observer, who sits at the
+   * bottom of the disc.
+   *
+   * Longitude is negated because this is a view from *above* the north pole,
+   * where eastward runs counter-clockwise. Getting that sign wrong mirrors the
+   * whole map and sends the Sun round the wrong way: it travels west over the
+   * ground, so from above it must go clockwise.
+   */
+  const at = (radiusKm, lonDeg) => {
+    const a = (90 - lonDeg) * D2R;
     return { x: cx + radiusKm * scale * Math.cos(a), y: cy + radiusKm * scale * Math.sin(a) };
   };
 
@@ -315,16 +323,29 @@ function drawPlanInset(ctx, W, H, plan, t) {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // The arc the Sun has covered so far.
+  // The arc the Sun has covered so far. Its longitude falls as it goes west,
+  // so the screen angle rises: clockwise, the way it looks from above.
   ctx.strokeStyle = t.flat;
   ctx.lineWidth = 2.5;
   ctx.beginPath();
   ctx.arc(cx, cy, plan.sunRadiusKm * scale,
-    (-plan.startHourAngleDeg + 90) * D2R, (-plan.hourAngleDeg + 90) * D2R, true);
+    (90 - plan.startSunLonDeg) * D2R, (90 - plan.sunLonDeg) * D2R, false);
   ctx.stroke();
 
   const obs = at(plan.observerRadiusKm, 0);
-  const sun = at(plan.sunRadiusKm, -plan.hourAngleDeg);
+  const sun = at(plan.sunRadiusKm, plan.sunLonDeg);
+
+  // An arrowhead a little ahead of the Sun, so the direction of travel is
+  // explicit rather than something you have to infer by scrubbing the
+  // timeline. Offset in pixels, not radians, or it lands on the Sun itself in
+  // a small inset.
+  const rSunPx = plan.sunRadiusKm * scale;
+  if (rSunPx > 14) {
+    const lead = (90 - plan.sunLonDeg) * D2R + 16 / rSunPx;
+    const tip = { x: cx + rSunPx * Math.cos(lead), y: cy + rSunPx * Math.sin(lead) };
+    ctx.fillStyle = t.flat;
+    arrowHead(ctx, tip.x, tip.y, tip.x - sun.x, tip.y - sun.y, 6);
+  }
 
   ctx.strokeStyle = t.sun;
   ctx.lineWidth = 1.5;

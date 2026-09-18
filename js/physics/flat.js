@@ -123,6 +123,19 @@ export function makeFlatModel(cfg) {
    * At the observer, "north" points at the centre of the map and "east" is the
    * direction of increasing longitude.
    */
+  /**
+   * The Sun's longitude on the map, east of the observer's meridian.
+   *
+   * The Sun is over the meridian at solar noon and its hour angle grows
+   * through the afternoon, so its longitude is the negative of that: it moves
+   * west, as everyone can see it do. The renderer needs this rather than the
+   * hour angle, because which way round the disc the Sun travels is exactly
+   * the sign being fixed here.
+   */
+  function mapSunLongitudeDeg(solarTimeHours) {
+    return -globe.sample(solarTimeHours).hourAngleDeg;
+  }
+
   function mapBearingDeg(solarTimeHours) {
     const H = globe.sample(solarTimeHours).hourAngleDeg * DEG;
     // Observer at map angle 0; the Sun is H west of it, i.e. at angle -H.
@@ -195,6 +208,7 @@ export function makeFlatModel(cfg) {
       equatorLengthKm: aeEquatorLengthKm(),
       distanceKm: mapDistanceKm,
       bearingDeg: mapBearingDeg,
+      sunLongitudeDeg: mapSunLongitudeDeg,
     },
     sunRadiusKm,
     sunDiameterKm,
