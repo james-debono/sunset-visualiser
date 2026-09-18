@@ -10,7 +10,9 @@
 import { AU_KM, KM_PER_MILE, DEG, RAD, milesToKm, kmToMiles, norm180, norm360 } from './physics/constants.js';
 
 import { buildScenario, summarise } from './physics/scenario.js';
+import { R_EARTH_KM } from './physics/solar.js';
 import { makeFlatModel, minimumHeightForImperceptibleShrink } from './physics/flat.js';
+import { fluxRatio, airmass } from './physics/extinction.js';
 import {
   apparentDiscDeg, apparentHorizonDipDeg, refractionFromTrueDeg, REFRACTION_PRESETS,
   MONOTONIC_LIMIT,
@@ -135,6 +137,7 @@ const state = {
   loupeMm: 1600,
   heightKm: milesToKm(1000),
   anchor: /** @type {'elevation'|'subsolar'} */ ('elevation'),
+  path: /** @type {'straight'|'gleason'} */ ('straight'),
   flat: null,
   minHeightKm: null,
   showTable: false,
@@ -153,13 +156,15 @@ function requestRender() {
 
 function rebuildFlat() {
   state.flat = makeFlatModel({
-    globe, startSolarTime: T0, heightKm: state.heightKm, anchor: state.anchor, declinationDeg,
+    globe, startSolarTime: T0, heightKm: state.heightKm, anchor: state.anchor,
+    declinationDeg, path: state.path,
   });
 }
 
 function recomputeMinHeight() {
   state.minHeightKm = minimumHeightForImperceptibleShrink({
-    globe, startSolarTime: T0, endSolarTime: TS, anchor: state.anchor, declinationDeg,
+    globe, startSolarTime: T0, endSolarTime: TS, anchor: state.anchor,
+    declinationDeg, path: state.path,
   });
 }
 
@@ -322,6 +327,13 @@ function render() {
 
   // --- Globe camera
   const gApp = apparent(g.altitudeDeg, g.angularDiameterDeg);
+  const startApp = apparent(START.altitudeDeg, START.angularDiameterDeg);
+  const globeFlux = fluxRatio({
+    angularDiameterDeg: g.angularDiameterDeg,
+    startAngularDiameterDeg: START.angularDiameterDeg,
+    apparentAltDeg: gApp.alt,
+    startApparentAltDeg: startApp.alt,
+  });
   const globeHorizon = -(state.refraction.on
     ? apparentHorizonDipDeg(cfg.eyeHeightM, state.refraction.conditions)
     : g.horizonDipDeg);
@@ -329,10 +341,18 @@ function render() {
     focalMm: state.focalMm, horizonFraction: FRAMING.horizonFraction, yawDeg: CAMERA_YAW,
     sunAltDeg: gApp.alt, sunAzDeg: g.azimuthDeg, sunHRadiusDeg: gApp.hR, sunVRadiusDeg: gApp.vR,
     ghostRadiusDeg: START.angularDiameterDeg / 2,
-    fluxRatio: (g.angularDiameterDeg / START.angularDiameterDeg) ** 2,
+    fluxRatio: globeFlux,
     horizonAltDeg: globeHorizon,
     loupeMm: state.loupeMm, ghostLabel,
   });
+
+  // On the local plane the Sun recedes in a straight line, so its bearing
+  // cannot change; on the map it circles the pole, and the bearing swings
+  // wildly -- 45 deg away from due west by sunset at the equator, where anyone
+  // with a compass can see it does not.
+  const flatBearing = state.path === 'gleason'
+    ? flat.map.bearingDeg(t)
+    : START.azimuthDeg;
 
   // --- Flat camera. The plane's horizon is its vanishing line, at exactly 0 deg.
   // The flat Sun holds the bearing the real Sun has at the start of the window:
@@ -340,11 +360,18 @@ function render() {
   // equator the real Sun's bearing does swing, which is one more difference the
   // two panes show.
   const fApp = apparent(f.altitudeDeg, f.angularDiameterDeg);
+  const f0App = apparent(f0.altitudeDeg, f0.angularDiameterDeg);
+  const flatFlux = fluxRatio({
+    angularDiameterDeg: f.angularDiameterDeg,
+    startAngularDiameterDeg: f0.angularDiameterDeg,
+    apparentAltDeg: fApp.alt,
+    startApparentAltDeg: f0App.alt,
+  });
   drawCamera(stages.flatCamera, {
     focalMm: state.focalMm, horizonFraction: FRAMING.horizonFraction, yawDeg: CAMERA_YAW,
-    sunAltDeg: fApp.alt, sunAzDeg: START.azimuthDeg, sunHRadiusDeg: fApp.hR, sunVRadiusDeg: fApp.vR,
+    sunAltDeg: fApp.alt, sunAzDeg: flatBearing, sunHRadiusDeg: fApp.hR, sunVRadiusDeg: fApp.vR,
     ghostRadiusDeg: f0.angularDiameterDeg / 2,
-    fluxRatio: (f.angularDiameterDeg / f0.angularDiameterDeg) ** 2,
+    fluxRatio: flatFlux,
     horizonAltDeg: 0,
     loupeMm: state.loupeMm, ghostLabel,
   });
@@ -393,6 +420,12 @@ function render() {
     xLabel: `x = ${dist(f.horizontalKm, 4)}`,
     dLabel: `d = ${dist(f.distanceKm, 4)}`,
     reserveLeft: readoutReserve(flatReadout),
+    plan: state.path === 'gleason' ? {
+      observerRadiusKm: flat.map.observerRadiusKm,
+      sunRadiusKm: flat.map.sunRadiusKm,
+      hourAngleDeg: g.hourAngleDeg,
+      startHourAngleDeg: START.hourAngleDeg,
+    } : null,
   };
   const flatRows = (layout) => {
     const rows = [];
@@ -403,7 +436,12 @@ function render() {
       ['Horizontal distance', dist(f.horizontalKm, 4)],
       ['Line of sight', dist(f.distanceKm, 4)],
     );
-    if (state.anchor === 'elevation') {
+    if (state.path === 'gleason') {
+      rows.push(['Bearing to Sun (map)', `${deg(flat.map.bearingDeg(t), 1)}`]);
+      rows.push(['Bearing measured', deg(g.azimuthDeg, 1)]);
+      rows.push(['Equator on this map', dist(flat.map.equatorLengthKm, 5)]);
+      rows.push(['Equator measured', dist(2 * Math.PI * R_EARTH_KM, 5)]);
+    } else if (state.anchor === 'elevation') {
       rows.push(['Start: point below Sun', dist(flat.startHorizontalKm, 4)]);
       rows.push(['Start: real subsolar point', dist(flat.measuredGroundDistanceKm, 4)]);
     }
@@ -423,7 +461,7 @@ function render() {
   rateChart.setPlayhead(t);
 
   // --- Comparison
-  renderCompare(g, f, f0, gApp, fApp);
+  renderCompare(g, f, f0, gApp, fApp, globeFlux, flatFlux);
 
   // --- Transport
   $('clock-time').textContent = formatSolarTime(t);
@@ -437,7 +475,7 @@ function render() {
   $('flat-camera-meta').textContent = lensText;
 }
 
-function renderCompare(g, f, f0, gApp, fApp) {
+function renderCompare(g, f, f0, gApp, fApp, gFlux, fFlux) {
   const body = $('compare').tBodies[0];
   const gRate = toArcsecPerMin(globe.angularRateDegPerHour(state.t));
   const fRate = toArcsecPerMin(state.flat.angularRateDegPerHour(state.t));
@@ -447,7 +485,7 @@ function renderCompare(g, f, f0, gApp, fApp) {
     ['Angular diameter', formatAngularSize(g.angularDiameterDeg), formatAngularSize(f.angularDiameterDeg)],
     ['Size vs start', pct(gRatio, 4), pct(fRatio, 1)],
     ['Changing by', signed(gRate, 4, '″/min'), signed(fRate, 2, '″/min')],
-    ['Brightness vs start', pct(gRatio ** 2, 3), pct(fRatio ** 2, 1)],
+    ['Light reaching you', pct(gFlux, 2), pct(fFlux, 2)],
     [state.refraction.on ? 'Altitude (apparent)' : 'Altitude', deg(gApp.alt, 2), deg(fApp.alt, 2)],
     ['Distance to Sun', dist(g.distanceKm, 9), dist(f.distanceKm, 4)],
   ];
@@ -588,8 +626,19 @@ bindSegmented($('units'), (v) => {
   requestRender();
 });
 
-bindSegmented($('anchor'), (v) => {
-  state.anchor = v;
+$('anchor').addEventListener('change', (e) => {
+  state.anchor = e.target.value;
+  applyFlatModelChange();
+});
+
+bindSegmented($('path'), (v) => {
+  state.path = v;
+  applyFlatModelChange();
+});
+
+/** Anything that changes which flat model is on screen goes through here. */
+function applyFlatModelChange() {
+  $('anchor-field').hidden = state.path === 'gleason';
   writeState();
   rebuildFlat();
   recomputeMinHeight();
@@ -597,7 +646,7 @@ bindSegmented($('anchor'), (v) => {
   updateCharts();
   renderVerdict();
   requestRender();
-});
+}
 
 /**
  * Refraction presets. Each label carries the horizon refraction the code
@@ -702,6 +751,11 @@ function syncHeightControls() {
   const v = inputInMiles() ? kmToMiles(state.heightKm) : state.heightKm;
   if (document.activeElement !== heightInput) heightInput.value = String(Math.round(v));
   $('height-unit').textContent = inputInMiles() ? 'mi' : 'km';
+  // The other system alongside, so a height typed in one is readable in both.
+  const other = inputInMiles()
+    ? `= ${Math.round(state.heightKm).toLocaleString()} km`
+    : `= ${Math.round(kmToMiles(state.heightKm)).toLocaleString()} mi`;
+  $('height-alt').textContent = state.units === 'both' ? other : '';
   heightSlider.setAttribute('aria-valuetext', dist(state.heightKm, 4));
 
   const select = $('height-presets');
@@ -948,8 +1002,9 @@ function writeState() {
       lat: state.latDeg.toFixed(3),
       lon: state.lonDeg.toFixed(3),
       t: state.t.toFixed(4),
-      h: String(Math.round(state.heightKm)),
+      h: state.heightKm.toFixed(3),
       a: state.anchor,
+      p: state.path,
       u: state.units,
       r: state.refraction.id,
       f: String(state.focalMm),
@@ -977,6 +1032,7 @@ function readState() {
   if (r) state.refraction = r;
   if (['metric', 'imperial', 'both'].includes(p.get('u'))) state.units = p.get('u');
   if (['elevation', 'subsolar'].includes(p.get('a'))) state.anchor = p.get('a');
+  if (['straight', 'gleason'].includes(p.get('p'))) state.path = p.get('p');
 
   const f = num('f');
   if (f !== null && COMMON_FOCAL_LENGTHS_MM.includes(f)) state.focalMm = f;
@@ -1004,7 +1060,9 @@ buildScrubTicks();
 syncSpeed();
 syncFocal();
 syncSegmented($('units'), state.units);
-syncSegmented($('anchor'), state.anchor);
+syncSegmented($('path'), state.path);
+$('anchor').value = state.anchor;
+$('anchor-field').hidden = state.path === 'gleason';
 renderScenarioLine();
 sizeChart.setTokens(tokens);
 rateChart.setTokens(tokens);

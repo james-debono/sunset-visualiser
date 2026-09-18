@@ -27,6 +27,7 @@ export const DEFAULT_SCENARIO = Object.freeze({
   windowHours: 3,
   flatHeightKm: milesToKm(1000),
   anchor: /** @type {'elevation'|'subsolar'} */ ('elevation'),
+  path: /** @type {'straight'|'gleason'} */ ('straight'),
   sunsetAltDeg: GEOMETRIC_SUNSET_ALT_DEG,
 });
 
@@ -55,7 +56,7 @@ export function buildScenario(overrides = {}) {
   const startSolarTime = sunsetSolarTime - windowHours;
 
   const flat = makeFlatModel({
-    globe, startSolarTime, heightKm: flatHeightKm, anchor, declinationDeg,
+    globe, startSolarTime, heightKm: flatHeightKm, anchor, declinationDeg, path: cfg.path,
   });
 
   return {
@@ -68,9 +69,9 @@ export function buildScenario(overrides = {}) {
     endSolarTime: sunsetSolarTime,
 
     /** Rebuild only the flat model -- for the height slider and anchor toggle. */
-    withFlatHeight(heightKm, nextAnchor = anchor) {
+    withFlatHeight(heightKm, nextAnchor = anchor, nextPath = cfg.path) {
       return makeFlatModel({
-        globe, startSolarTime, heightKm, anchor: nextAnchor, declinationDeg,
+        globe, startSolarTime, heightKm, anchor: nextAnchor, declinationDeg, path: nextPath,
       });
     },
 

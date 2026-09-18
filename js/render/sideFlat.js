@@ -30,8 +30,15 @@ function niceStep(raw) {
  * Layout and scale for a given canvas size. Exported so the caller can report
  * the drawing scale and Sun enlargement alongside the other readouts.
  */
+/** Side of the plan-view inset, and 0 when there is no inset to draw. */
+export function planInsetSize(W, H, plan) {
+  if (!plan) return 0;
+  return Math.round(Math.max(96, Math.min(160, Math.min(W * 0.26, H * 0.62))));
+}
+
 export function flatSideLayout(W, H, v) {
-  const padR = 20, padT = 24, padB = 30;
+  const inset = planInsetSize(W, H, v.plan);
+  const padR = 20 + (inset ? inset + 14 : 0), padT = 24, padB = 30;
   const padL = Math.max(24, v.reserveLeft || 0);
   const obsX = padL;
   const groundY = H - padB;
@@ -64,6 +71,7 @@ export function flatSideLayout(W, H, v) {
  * @param {string} v.xLabel
  * @param {string} v.dLabel
  * @param {number} v.reserveLeft        px kept clear on the left for the readout
+ * @param {object} [v.plan]             map geometry for the plan inset, if any
  * @param {object} t                    theme tokens
  */
 export function drawFlatSide(stage, v, t) {
@@ -224,4 +232,95 @@ export function drawFlatSide(stage, v, t) {
   ctx.beginPath();
   ctx.arc(obsX, groundY - 14, 3, 0, Math.PI * 2);
   ctx.fill();
+
+  if (v.plan) drawPlanInset(ctx, W, H, v.plan, t);
+}
+
+/**
+ * Plan view of the flat-Earth map, drawn only for the Gleason path.
+ *
+ * Looking down on the disc: the north pole at the centre, the observer on his
+ * own circle, and the Sun going round a circle of its own once a day. It is
+ * here because the elevation view beside it cannot show the one thing this
+ * model gets most obviously wrong -- the Sun does not recede in a straight
+ * line, it swings around, and by sunset its bearing is 45 degrees away from
+ * where the Sun actually sets.
+ *
+ * The observer is drawn at the bottom of his circle so that the pole is
+ * "up the page", the way the map is normally printed.
+ */
+function drawPlanInset(ctx, W, H, plan, t) {
+  const S = planInsetSize(W, H, plan);
+  const x = W - S - 12, y = 12;
+  const cx = x + S / 2, cy = y + S / 2;
+  const pad = 26;
+  const scale = (S / 2 - pad) / (Math.max(plan.observerRadiusKm, plan.sunRadiusKm) * 1.06);
+
+  // Map angle 0 is the observer's meridian; put it at the bottom of the inset.
+  const at = (radiusKm, angleDeg) => {
+    const a = (angleDeg + 90) * D2R;
+    return { x: cx + radiusKm * scale * Math.cos(a), y: cy + radiusKm * scale * Math.sin(a) };
+  };
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x, y, S, S, 8);
+  ctx.fillStyle = t.surface;
+  ctx.fill();
+  ctx.clip();
+
+  // The observer's own circle, and the Sun's.
+  ctx.strokeStyle = t.grid;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, plan.observerRadiusKm * scale, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.setLineDash([3, 3]);
+  ctx.strokeStyle = t.axis;
+  ctx.beginPath();
+  ctx.arc(cx, cy, plan.sunRadiusKm * scale, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // The arc the Sun has covered so far.
+  ctx.strokeStyle = t.flat;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, plan.sunRadiusKm * scale,
+    (-plan.startHourAngleDeg + 90) * D2R, (-plan.hourAngleDeg + 90) * D2R, true);
+  ctx.stroke();
+
+  const obs = at(plan.observerRadiusKm, 0);
+  const sun = at(plan.sunRadiusKm, -plan.hourAngleDeg);
+
+  ctx.strokeStyle = t.sun;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(obs.x, obs.y);
+  ctx.lineTo(sun.x, sun.y);
+  ctx.stroke();
+
+  // Pole, observer, Sun.
+  ctx.fillStyle = t.muted;
+  ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = t.ink;
+  ctx.beginPath(); ctx.arc(obs.x, obs.y, 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = t.sun;
+  ctx.beginPath(); ctx.arc(sun.x, sun.y, 4, 0, Math.PI * 2); ctx.fill();
+
+  haloText(ctx, 'N', cx, cy - 6, { fill: t.muted, halo: t.surface, align: 'center', size: 9.5 });
+  haloText(ctx, 'you', obs.x, obs.y + 13, { fill: t['ink-2'], halo: t.surface, align: 'center', size: 9.5 });
+  const sunRight = sun.x < cx;
+  haloText(ctx, 'Sun', sun.x + (sunRight ? 7 : -7), sun.y + 3,
+    { fill: t['ink-2'], halo: t.surface, align: sunRight ? 'left' : 'right', size: 9.5 });
+  haloText(ctx, 'plan view of the map', x + S / 2, y + S - 6,
+    { fill: t.muted, halo: t.surface, align: 'center', size: 10 });
+
+  ctx.restore();
+  ctx.strokeStyle = t.hairline || t.axis;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(x + 0.5, y + 0.5, S - 1, S - 1, 8);
+  ctx.stroke();
 }

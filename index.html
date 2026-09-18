@@ -108,10 +108,10 @@
         <span class="key flat" aria-hidden="true"></span>
         <h2 id="h-flat-side">Flat Earth <span class="view">· side view</span></h2>
         <span class="head-controls">
-          <span class="seg-label">Sun starts</span>
-          <span class="seg seg-sm" id="anchor">
-            <button type="button" data-value="elevation" aria-pressed="true" title="Place the Sun so it starts at the same elevation the real Sun has. Both camera views then begin identical.">at real elevation</button>
-            <button type="button" data-value="subsolar" aria-pressed="false" title="Place the Sun above the measured subsolar point (where the real Sun is overhead). No free parameters, but it starts at the wrong elevation.">above real subsolar point</button>
+          <span class="seg-label">Model</span>
+          <span class="seg seg-sm" id="path">
+            <button type="button" data-value="straight" aria-pressed="true" title="Local plane: the Sun recedes in a straight line at the measured speed of the subsolar point. The most charitable version.">Local plane</button>
+            <button type="button" data-value="gleason" aria-pressed="false" title="The azimuthal-equidistant disc that flat-Earth maps use. The Sun circles above the pole and its whole path follows from the map.">Gleason map</button>
           </span>
         </span>
       </div>
@@ -123,9 +123,17 @@
         <span class="field">
           <input type="number" id="height-input" min="1" step="any" aria-label="Sun height value">
           <span class="unit" id="height-unit">km</span>
+          <span class="unit alt" id="height-alt"></span>
         </span>
         <label class="field">
           <select id="height-presets" aria-label="Height presets"></select>
+        </label>
+        <label class="field" id="anchor-field">
+          Starts
+          <select id="anchor" aria-label="Where the flat Sun starts">
+            <option value="elevation">at the real elevation</option>
+            <option value="subsolar">above the real subsolar point</option>
+          </select>
         </label>
       </div>
       <div class="stage">

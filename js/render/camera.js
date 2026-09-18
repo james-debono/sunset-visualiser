@@ -14,10 +14,8 @@
  * What is physical and what is decorative:
  *
  *   PHYSICAL  Sun position, angular size and shape; horizon position; lens
- *             projection; relative brightness of the glow, which scales with
- *             the Sun's solid angle (received flux ~ angular area x surface
- *             brightness, and surface brightness does not change with
- *             distance).
+ *             projection; and the flux that drives the glare, which is the
+ *             Sun's angular area times atmospheric transmittance.
  *   DECORATIVE  Sky and sea colours. They vary with solar altitude to look
  *             like a sunset, but are not a radiative-transfer model and carry
  *             no part of the argument. Both panes use the identical function.
@@ -130,21 +128,40 @@ function paintSky(ctx, x, y, w, h, cam, cx, cy, yawDeg, sunAlt, elevBottom, elev
   ctx.fillRect(x, y, w, h);
 }
 
+/**
+ * The glare around the Sun -- the part people actually mistake for the Sun
+ * getting smaller.
+ *
+ * PHYSICAL: the flux driving it. That is the Sun's angular area times the
+ * fraction of its light surviving the trip through the air, both computed in
+ * js/physics/. Near the horizon the light crosses about 38 times as much
+ * atmosphere as overhead and arrives some 5.5 magnitudes fainter, so the glare
+ * collapses while the disc behind it does not change at all.
+ *
+ * RENDERING: how that flux becomes a radius. Glare in an eye or a lens falls
+ * off roughly as the inverse cube of angle, so the radius at which it fades
+ * below a fixed threshold goes as the cube root of the flux. Opacity barely
+ * moves, because both eye and camera re-expose as the scene darkens. Neither
+ * is a scattering model; see maths.html section 9.
+ */
 function paintGlow(ctx, sx, sy, frameH, sunAlt, fluxRatio) {
   const [, glow] = sunRamp(sunAlt);
-  const low = 1 - clamp01(sunAlt / 25);           // stronger glow nearer the horizon
-  const f = clamp01(fluxRatio);
+  const low = 1 - clamp01(sunAlt / 25);           // warmer, softer glare low down
+  const f = Math.max(1e-5, clamp01(fluxRatio));
+  const size = Math.cbrt(f);
+  const alpha = 0.55 + 0.45 * size;
 
-  const wide = ctx.createRadialGradient(sx, sy, 0, sx, sy, frameH * 0.9);
-  wide.addColorStop(0, rgba(glow, (0.20 + 0.35 * low) * f));
-  wide.addColorStop(0.35, rgba(glow, (0.07 + 0.14 * low) * f));
+  const wideR = frameH * (0.05 + 1.7 * size);
+  const wide = ctx.createRadialGradient(sx, sy, 0, sx, sy, wideR);
+  wide.addColorStop(0, rgba(glow, (0.30 + 0.34 * low) * alpha));
+  wide.addColorStop(0.35, rgba(glow, (0.11 + 0.15 * low) * alpha));
   wide.addColorStop(1, rgba(glow, 0));
   ctx.fillStyle = wide;
-  ctx.fillRect(sx - frameH, sy - frameH, frameH * 2, frameH * 2);
+  ctx.fillRect(sx - wideR, sy - wideR, wideR * 2, wideR * 2);
 
-  const r = frameH * 0.07;
+  const r = frameH * (0.006 + 0.17 * size);
   const core = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
-  core.addColorStop(0, rgba(glow, 0.55 * f));
+  core.addColorStop(0, rgba(glow, 0.6 * alpha));
   core.addColorStop(1, rgba(glow, 0));
   ctx.fillStyle = core;
   ctx.fillRect(sx - r, sy - r, r * 2, r * 2);

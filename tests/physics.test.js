@@ -44,6 +44,10 @@ import {
   pitchForHorizonFractionDeg, defaultFraming, discOutline, projectVector,
 } from '../js/physics/optics.js';
 import { orthographic, inverseOrthographic } from '../js/physics/geo.js';
+import { aeRadiusKm, aeEquatorLengthKm } from '../js/physics/flat.js';
+import {
+  airmass, transmittance, extinctionMagnitudes, fluxRatio, DEFAULT_EXTINCTION_K,
+} from '../js/physics/extinction.js';
 
 // -----------------------------------------------------------------------------
 
@@ -791,5 +795,157 @@ suite('Framing away from the equator', () => {
       const horizon = 500 - project(0, 270, cam).y;
       between(horizon, 0, 1000, `span ${span} deg: horizon on screen`);
     }
+  });
+});
+
+suite('Atmospheric extinction', () => {
+  test('airmass matches Kasten and Young at the ends of its range', () => {
+    note('overhead', airmass(90).toFixed(4));
+    note('45 deg', airmass(45).toFixed(3));
+    note('horizon', airmass(0).toFixed(2));
+    approx(airmass(90), 1, 0.001, 'one airmass looking straight up');
+    approx(airmass(45), 1.413, 0.01, 'about sec(z) while the Sun is high');
+    approx(airmass(0), 37.92, 0.05, 'the published horizon value');
+  });
+
+  test('the old 1/sin formula would be badly wrong near the horizon', () => {
+    // Why Kasten and Young is worth the extra terms: 1/sin(h) diverges at the
+    // horizon, where the real path length stays finite because the atmosphere
+    // curves away with the Earth.
+    approx(1 / Math.sin(45 * Math.PI / 180), airmass(45), 0.01, 'the two agree high up');
+    note('1/sin at 1 deg', (1 / Math.sin(1 * Math.PI / 180)).toFixed(1));
+    note('airmass at 1 deg', airmass(1).toFixed(1));
+    greaterThan(1 / Math.sin(1 * Math.PI / 180), 1.8 * airmass(1), 'but not low down');
+    greaterThan(1 / Math.sin(0.01 * Math.PI / 180), 100 * airmass(0), 'and it runs away at 0');
+    lessThan(airmass(0), 40, 'while airmass stays finite');
+  });
+
+  test('the Sun dims by about 5.7 magnitudes between overhead and the horizon', () => {
+    const mags = extinctionMagnitudes(0) - extinctionMagnitudes(90);
+    const factor = 1 / (transmittance(0) / transmittance(90));
+    note('magnitudes lost', mags.toFixed(2));
+    note('dimmer by a factor of', factor.toFixed(0));
+    between(mags, 5, 6.5, 'consistent with ~100,000 lux at noon and ~500 at sunset');
+    between(factor, 100, 400, 'dimming factor');
+  });
+
+  test('transmittance is a fraction, and falls all the way down', () => {
+    let prev = 1;
+    for (let h = 90; h >= 0; h -= 1) {
+      const t = transmittance(h);
+      between(t, 0, 1, `transmittance at ${h} deg`);
+      lessThan(t, prev + 1e-12, `still falling at ${h} deg`);
+      prev = t;
+    }
+  });
+
+  test('flux folds together angular area and extinction', () => {
+    // A globe Sun keeps its size, so all of its dimming is extinction. A flat
+    // Sun would lose light twice over: by shrinking and by the air.
+    const globeLike = fluxRatio({
+      angularDiameterDeg: 0.5311, startAngularDiameterDeg: 0.5311,
+      apparentAltDeg: 0.5, startApparentAltDeg: 45,
+    });
+    const flatLike = fluxRatio({
+      angularDiameterDeg: 0.1775, startAngularDiameterDeg: 0.5311,
+      apparentAltDeg: 13.7, startApparentAltDeg: 45,
+    });
+    note('globe Sun at sunset', `${(globeLike * 100).toFixed(1)} % of its 15:00 light`);
+    note('flat Sun at sunset', `${(flatLike * 100).toFixed(1)} %`);
+    lessThan(globeLike, 0.05, 'the real Sun dims hard, which is why you can look at it');
+    approx(flatLike / ((0.1775 / 0.5311) ** 2), transmittance(13.7) / transmittance(45), 1e-12,
+      'the two factors multiply');
+  });
+});
+
+suite('Flat model on the Gleason map', () => {
+  const sc = buildScenario();
+  const straight = sc.flat;
+  const gleason = sc.withFlatHeight(DEFAULT_SCENARIO.flatHeightKm, 'elevation', 'gleason');
+  const R = R_EARTH_KM;
+
+  test('the map places latitudes by their distance from the pole', () => {
+    approx(aeRadiusKm(90), 0, 1e-9, 'the north pole is the centre');
+    approxRel(aeRadiusKm(0), R * Math.PI / 2, 1e-12, 'the equator');
+    approxRel(aeRadiusKm(-90), R * Math.PI, 1e-12, 'the south pole is the rim');
+    note('equator radius on the map', `${aeRadiusKm(0).toFixed(0)} km`);
+  });
+
+  test('the map stretches the equator by 57%, and that is checkable', () => {
+    const mapped = aeEquatorLengthKm();
+    const real = 2 * Math.PI * R;
+    note('equator on the map', `${Math.round(mapped).toLocaleString()} km`);
+    note('equator as measured', `${Math.round(real).toLocaleString()} km`);
+    approxRel(mapped / real, Math.PI / 2, 1e-12, 'longer by exactly pi/2');
+  });
+
+  test('so the Sun has to move half as fast again', () => {
+    note('straight-line model', `${straight.speedKmh.toFixed(0)} km/h`);
+    note('Gleason map', `${gleason.speedKmh.toFixed(0)} km/h`);
+    const expected = (2 * Math.PI * aeRadiusKm(sc.declinationDeg)) / 24;
+    approxRel(gleason.speedKmh, expected, 1e-12, 'set by the map, not by measurement');
+    approx(gleason.speedKmh / straight.speedKmh, Math.PI / 2, 0.01, 'about pi/2 faster');
+    greaterThan(gleason.speedKmh, 2600);
+  });
+
+  test('distances on the map follow the cosine rule about the pole', () => {
+    const rObs = aeRadiusKm(sc.config.latDeg), rSun = aeRadiusKm(sc.declinationDeg);
+    for (const [h, H] of [[15, 45], [18, 90]]) {
+      const c = Math.cos(H * Math.PI / 180);
+      const expected = Math.sqrt(rObs * rObs + rSun * rSun - 2 * rObs * rSun * c);
+      approxRel(gleason.horizontalKm(h), expected, 1e-9, `hour angle ${H}`);
+    }
+    note('distance at 15:00', `${gleason.horizontalKm(15).toFixed(0)} km`);
+    note('distance at sunset', `${gleason.horizontalKm(18).toFixed(0)} km`);
+    greaterThan(gleason.horizontalKm(18), straight.horizontalKm(18), 'further than the steelman');
+  });
+
+  test('the map puts the Sun in the wrong part of the sky, by a lot', () => {
+    // At an equinox on the equator the Sun sets due west. Anyone can check
+    // this with a compass, or with the shadow of a stick.
+    const atStart = gleason.map.bearingDeg(15);
+    const atSunset = gleason.map.bearingDeg(18);
+    note('bearing at 15:00', `${atStart.toFixed(1)} deg (measured 270)`);
+    note('bearing at sunset', `${atSunset.toFixed(1)} deg (measured 270)`);
+    approx(atStart, 292.5, 0.2);
+    approx(atSunset, 315, 0.2, 'the map has the Sun setting in the north-west');
+    greaterThan(Math.abs(atSunset - 270), 40, 'a 45 degree error, on an equinox');
+  });
+
+  test('its Sun shrinks less, because the map starts it much further away', () => {
+    // Worth stating plainly, because the obvious guess is wrong: the map's Sun
+    // moves half as fast again, but it also begins 7,700 km away instead of
+    // 1,600, and the extra starting distance more than cancels the extra
+    // speed. So this is the mildest flat variant on offer for angular size --
+    // and it is the one that fails hardest on everything else, being 45 deg
+    // out in bearing and needing a Sun 57% faster than the measured one.
+    const frac = (m) => m.sample(18).angularDiameterDeg / m.sample(15).angularDiameterDeg;
+    const subsolar = sc.withFlatHeight(DEFAULT_SCENARIO.flatHeightKm, 'subsolar');
+    note('straight line, matched elevation', `${(frac(straight) * 100).toFixed(1)} % of its width`);
+    note('straight line, measured distance', `${(frac(subsolar) * 100).toFixed(1)} %`);
+    note('Gleason map', `${(frac(gleason) * 100).toFixed(1)} %`);
+    note('starting distance, matched elevation', `${straight.horizontalKm(15).toFixed(0)} km`);
+    note('starting distance, Gleason map', `${gleason.horizontalKm(15).toFixed(0)} km`);
+    greaterThan(frac(gleason), frac(straight), 'milder than the elevation-matched steelman');
+    lessThan(frac(gleason), 0.6, 'but still nothing like the real Sun');
+
+    // Whatever the variant, it is astronomically far from what the sky does.
+    const g = sc.globe;
+    const globeChange = Math.abs(
+      g.sample(18).angularDiameterDeg - g.sample(15).angularDiameterDeg,
+    );
+    const mapChange = Math.abs(
+      gleason.sample(18).angularDiameterDeg - gleason.sample(15).angularDiameterDeg,
+    );
+    note('vs the globe model', `${Math.round(mapChange / globeChange).toLocaleString()} times the change`);
+    greaterThan(mapChange / globeChange, 1000);
+  });
+
+  test('numerical and analytic rates still agree on the straight path only', () => {
+    // The map path curves, so the closed form does not apply to it and the app
+    // uses the numerical rate there. Guard the assumption rather than assume it.
+    approxRel(straight.angularRateDegPerHour(16), straight.angularRateAnalyticDegPerHour(16), 5e-5);
+    const numeric = gleason.angularRateDegPerHour(16);
+    lessThan(numeric, 0, 'the map Sun is shrinking too');
   });
 });

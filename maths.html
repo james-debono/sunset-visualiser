@@ -176,7 +176,7 @@
     <li><strong>Time is apparent solar time</strong>: the Sun is due south or north at 12:00. The hour angle is <i>H</i> = 15&deg; &times; (<i>t</i> &minus; 12).</li>
     <li><strong>Earth is a sphere</strong> of radius equal to the equatorial radius. In the default scenario the subsolar point runs along the equator, where that radius is exact. Oblateness is covered in <a href="#simplifications">&sect;10</a>.</li>
     <li><strong>Default scenario</strong>: an observer on the equator (0&deg;, 0&deg;), eye height 1.7 m, on 23 September 2026, the day of the September equinox. The window runs from three hours before geometric sunset (15:00) to sunset (18:00), and the timeline carries on 15 minutes past it so the disc can be seen to go.</li>
-    <li><strong>The location picker</strong> moves the observer anywhere up to 80&deg; of latitude; the date stays at the equinox. Every figure below is for the default equatorial case unless it says otherwise. Latitude changes the numbers but not the conclusion (&sect;6.7).</li>
+    <li><strong>The location picker</strong> moves the observer anywhere up to 80&deg; of latitude; the date stays at the equinox. Every figure below is for the default equatorial case unless it says otherwise. Latitude changes the numbers but not the conclusion (&sect;6.8).</li>
   </ul>
 
   <!-- 2 ------------------------------------------------------------------ -->
@@ -405,7 +405,38 @@
 
   <p>At those heights the flat model hides the shrink only by failing to set at all.</p>
 
-  <h3>6.7 What latitude changes</h3>
+  <h3>6.7 The other flat model: the Gleason map</h3>
+  <span class="impl">flat.js &rarr; makeFlatModel({ path: 'gleason' })</span>
+
+  <p>The local-plane version above is a steelman: it is handed the measured speed of the subsolar point and asked only to move in a straight line. The maps flat-Earth arguments actually use are azimuthal-equidistant discs &mdash; the Gleason map and its relatives &mdash; with the north pole at the centre and distance from the pole preserved:</p>
+
+  <div class="eq"><i>r</i>(<i>&phi;</i>) = <i>R</i> (&pi;/2 &minus; <i>&phi;</i>)<span class="where">so the north pole is 0, the equator 10,019 km out, and the south pole is smeared round the rim</span></div>
+
+  <p>Choose that map and nothing is left to fit. The Sun circles above the latitude of its own declination, and the observer sits on his own circle, so the distance between them is the cosine rule about the pole, with the hour angle as the included angle:</p>
+
+  <div class="eq"><i>x</i>(<i>t</i>) = &radic;( <i>r</i><sub>obs</sub>&sup2; + <i>r</i><sub>sun</sub>&sup2; &minus; 2 <i>r</i><sub>obs</sub> <i>r</i><sub>sun</sub> cos <i>H</i> )</div>
+
+  <p>Three consequences follow, none of them chosen:</p>
+
+  <table>
+    <thead><tr><th></th><th class="num">This map says</th><th class="num">Measured</th></tr></thead>
+    <tbody>
+      <tr><td>Length of the equator</td><td class="num">62,950 km</td><td class="num">40,075 km</td></tr>
+      <tr><td>Sun's speed over the ground</td><td class="num">2,628 km/h</td><td class="num">1,670 km/h</td></tr>
+      <tr><td>Bearing of the Sun at sunset, equator, equinox</td><td class="num">315&deg; (north-west)</td><td class="num">270&deg; (due west)</td></tr>
+    </tbody>
+  </table>
+
+  <p>The equator comes out longer by exactly &pi;/2, which is 57%, and everything else follows from that. It is not a subtle discrepancy: it is checkable by flying between two points on the equator and timing it, or by watching where the Sun actually sets with a compass. A 45&deg; error in bearing is the width of half the sky.</p>
+
+  <div class="callout">
+    <p><strong>An honest surprise: on angular size this map does better than the steelman, not worse.</strong> The obvious guess is that a Sun moving half as fast again must shrink faster. It does not, because the map also starts it <strong>7,676 km</strong> away rather than 1,609 km, and the extra starting distance more than cancels the extra speed. Its Sun ends at <strong>54.9%</strong> of its width, against 33.4% for the elevation-matched local plane.</p>
+    <p>That is still a 45% loss of width where the real Sun changes by 0.0094&Prime;, and it is still about 92,000 times the globe model's change. The map buys a slightly better answer on this one question by being flatly wrong about where the Sun is in the sky.</p>
+  </div>
+
+  <p>The plan-view inset in the flat side panel shows the map itself: the pole, the observer's circle, the Sun's circle, and the line between them, because the elevation view alone cannot show a Sun that swings round rather than receding in a straight line.</p>
+
+  <h3>6.8 What latitude changes</h3>
 
   <p>The equator is where the flat model fares worst: the Sun starts highest, and so nearest, and then recedes furthest in relative terms. Moving away from it softens the contrast without coming close to rescuing the model.</p>
 
@@ -544,7 +575,33 @@
 
   <h3>8.5 Glow brightness</h3>
 
-  <p>The Sun&rsquo;s surface brightness does not change with distance, so the light received is proportional to its solid angle, which goes as (<i>&theta;</i>/<i>&theta;</i><sub>0</sub>)&sup2;. The glow&rsquo;s opacity is scaled by that ratio. By real sunset the flat Sun would deliver <strong>11%</strong> of its 15:00 light, which is another observable it fails.</p>
+  <p>Two things change how much light arrives. One is the Sun&rsquo;s angular area, since surface brightness does not change with distance, so flux follows the solid angle. The other is the air.</p>
+
+  <h3>8.6 Extinction, and why people think the Sun shrinks</h3>
+  <span class="impl">extinction.js</span>
+
+  <p>Light from a low Sun crosses far more atmosphere than light from a high one. The standard fit for how much more is Kasten &amp; Young (1989):</p>
+
+  <div class="eq"><i>X</i> = 1 / ( sin <i>h</i> + 0.50572 (<i>h</i> + 6.07995)<sup>&minus;1.6364</sup> )<span class="where">airmass: 1.00 overhead, 1.41 at 45&deg;, 37.92 at the horizon</span></div>
+
+  <p>and the loss is the usual magnitude law, transmittance = 10<sup>&minus;0.4<i>kX</i></sup>. With <i>k</i> = 0.15 magnitudes per airmass the total dimming from overhead to the horizon comes to about 5.5 magnitudes, a factor of roughly 165 &mdash; consistent with the drop from ~100,000 lux at midday to ~500 lux at a clear sunset. A single coefficient is an approximation: real extinction is Rayleigh scattering plus aerosol plus ozone, and the aerosol part varies by a factor of several with haze. It is the right trend and the right order of magnitude, not photometry.</p>
+
+  <p>Put the two together and the globe model predicts this:</p>
+
+  <table>
+    <thead><tr><th></th><th class="num">Angular diameter</th><th class="num">Light reaching you</th></tr></thead>
+    <tbody>
+      <tr><td>15:00</td><td class="num">0.5311&deg;</td><td class="num">100%</td></tr>
+      <tr><td>Sunset</td><td class="num">0.5311&deg;</td><td class="num">1.6%</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <p><strong>This is the honest version of &ldquo;the Sun looks smaller at sunset&rdquo;.</strong> Something really does shrink, by a factor of sixty: the glare. At midday the Sun is so far past what an eye or a sensor can hold that it blooms into a patch many times the disc; by sunset it is faint enough to look at, and the bloom collapses onto the disc.</p>
+    <p>The disc inside it never moved. That is what the loupe on this page is for: the wide view shows the glare shrinking, and the magnified view beside it shows the disc against a dashed ring at its starting size, unchanged. If you have ever watched a sunset and felt the Sun get smaller, this is almost certainly what you were watching.</p>
+  </div>
+
+  <p><strong>Where the physics stops and the drawing starts.</strong> The flux is computed. Turning it into a radius is not: glare in an eye or a lens falls off roughly as the inverse cube of angle, so the radius at which it drops below a fixed visibility threshold goes as the cube root of the flux, and that is the rule the renderer uses. Opacity is held nearly constant, because both eye and camera re-expose as the scene darkens. It is a plausible rule, not a scattering model, and the flat and globe panes use the identical one.</p>
 
   <!-- 9 ------------------------------------------------------------------ -->
   <h2 id="decorative"><span class="n">9</span>What is decorative</h2>
@@ -553,7 +610,7 @@
 
   <ul>
     <li><strong>Sky and sea colours.</strong> They vary with solar altitude to look like a sunset, but they are not a radiative-transfer model.</li>
-    <li><strong>Glow shape and radius.</strong> Only the glow&rsquo;s relative brightness is physical (&sect;8.5).</li>
+    <li><strong>Glare shape.</strong> The flux behind it is computed (&sect;8.5, &sect;8.6); how that flux becomes a radius and an opacity is a rendering rule.</li>
     <li><strong>Globe side view distances.</strong> Earth and Sun sizes and spacing are schematic, labelled as such, with the true-scale sizes printed on the panel. The angles are exact.</li>
     <li><strong>Flat side view Sun size.</strong> Drawn at a 4.5 px minimum when its true size would be sub-pixel, with the enlargement factor shown. Its position and line of sight are never adjusted.</li>
   </ul>
@@ -566,7 +623,7 @@
     <tbody>
       <tr><td>Spherical Earth; oblateness 0.34% ignored</td><td>Changes <i>R</i> by at most 21 km, so the 4,510 km rotational term by at most ~15 km</td><td>Moves the globe result by at most ~0.0003&Prime;</td></tr>
       <tr><td>Low-precision ephemeris</td><td>~0.01&deg; in solar longitude</td><td>The globe result depends on distance <em>changes</em> of thousands of km; the ephemeris is far better than that</td></tr>
-      <tr><td>Flat Sun moves in a straight line</td><td>On the azimuthal-equidistant map it would circle at 2,623 km/h over the equator</td><td>A faster Sun shrinks faster, so the default is the flat model&rsquo;s best case</td></tr>
+      <tr><td>Flat Sun moves in a straight line <em>(now optional)</em></td><td>The azimuthal-equidistant map is offered too, and circles the Sun at 2,628 km/h (&sect;6.7)</td><td>Neither is the flat model&rsquo;s best case on every count: the map shrinks the Sun less but puts it 45&deg; wrong in bearing</td></tr>
       <tr><td>Declination held fixed for the flat Sun&rsquo;s speed</td><td><i>&delta;</i> changes ~0.05&deg; across the window</td><td>Changes <i>v</i> by about 3 parts in a million near the equinox</td></tr>
       <tr><td>Refraction formulae, and the <i>scale</i> knob</td><td>Unreliable below about &minus;1&deg;; inversions are not modelled, only approximated by a multiplier</td><td>Refraction cannot alter the disc&rsquo;s width at any strength (&sect;7.2)</td></tr>
       <tr><td>Naked-eye resolution taken as 1&prime;</td><td>A rule of thumb</td><td>The globe change is 6,000&times; smaller; the threshold could be wrong by 1,000&times; without mattering</td></tr>
@@ -615,6 +672,12 @@
   <ul>
     <li><strong>Low-precision formulae for the Sun&rsquo;s coordinates.</strong> U.S. Naval Observatory, <em>The Astronomical Almanac</em>, Section C (&ldquo;Sun&rdquo;). Stated accuracy 0.01&deg; over 1950&ndash;2050.</li>
     <li>Meeus, J. (1998), <em>Astronomical Algorithms</em>, 2nd ed., Willmann-Bell &mdash; ch. 13 (coordinate transformations), ch. 15 (rising and setting), ch. 25 (solar coordinates).</li>
+  </ul>
+
+  <h3>Extinction</h3>
+  <ul>
+    <li>Kasten, F. &amp; Young, A. T. (1989), <em>Revised optical air mass tables and approximation formula</em>, Applied Optics 28, 4735&ndash;4738.</li>
+    <li>Extinction coefficient and the midday-to-sunset illuminance drop: standard observational figures, used here only to fix the scale of the effect.</li>
   </ul>
 
   <h3>Refraction and horizon dip</h3>

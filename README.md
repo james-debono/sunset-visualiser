@@ -18,7 +18,7 @@ The flat model's size change is **136,000 times** the globe's. Real sunsets look
 - **Globe · camera.** What a 24 mm lens sees, with the horizon near the bottom of the frame. Beside it, a 1600 mm loupe aimed at the Sun shows the disc against a dashed ring at its starting size.
 - **Globe · side.** The Sun stays put and the Earth turns. The observer's horizon tips up past the Sun, and the angle between them is drawn exactly.
 - **Flat · camera.** The same lens and framing, if the Sun were a small object moving away above a plane.
-- **Flat · side.** Drawn to scale, so the angles are true. You can set the Sun's height; its size is derived so that it starts at the real angular diameter.
+- **Flat · side.** Drawn to scale, so the angles are true. You can set the Sun's height; its size is derived so that it starts at the real angular diameter. Two flat models are offered: a local plane, and the azimuthal-equidistant disc that flat-Earth maps actually use, which adds a plan view of the map.
 
 The charts beneath show angular size and its rate of change over time, and a table compares the two models moment by moment.
 
@@ -35,10 +35,11 @@ In the page's browser console, `sunset.globe.sample(16.5)` and `sunset.flat.samp
 ## What it is careful about
 
 - **Both distance effects on the globe.** Earth's rotation carries the observer 4,510 km further from the Sun over the window, but in September the orbit brings Earth 5,244 km closer. The net result is quoted, not just the convenient half.
-- **The flat model at its strongest.** The Sun gets the correct starting size and elevation for free, moving in a straight line at the measured speed of the subsolar point. A second mode places it above the real subsolar point instead, and the inconsistency each mode carries is shown on screen.
+- **The flat model at its strongest.** The Sun gets the correct starting size and elevation for free, moving in a straight line at the measured speed of the subsolar point. Other modes place it above the real subsolar point, or on the Gleason map, and the inconsistency each one carries is shown on screen. The map is the mildest on angular size and the worst on everything else: it needs the Sun 57% faster than measured and puts it 45° from where it really sets.
 - **Lens distortion.** A wide lens stretches objects near the edge of frame by about 17%. The main view reproduces this, and the loupe is a separate camera aimed at the Sun so distortion can't masquerade as a size change.
 - **Refraction.** Standard air by default, adjustable from hot-day to extreme-mirage conditions, and applied to both models equally. However strong it gets, it squashes the disc's height and leaves its width untouched, which is why it cannot rescue the flat model. Where the standard formulae stop being monotonic (below about −1.9°) refraction is held at its maximum modelled value rather than followed into nonsense.
-- **Decorative versus physical.** Sky colours are decorative, and the docs say so. Positions, sizes, angles and relative brightness are computed.
+- **Why the Sun *looks* like it shrinks.** Atmospheric extinction dims a setting Sun by a factor of about 165, so the glare around it collapses while the disc does not move. The wide view shows the glare shrinking; the loupe beside it shows the disc unchanged against a ring at its starting size. That is the honest version of what people report seeing.
+- **Decorative versus physical.** Sky colours are decorative, and the docs say so. Positions, sizes, angles and the flux behind the glare are computed.
 
 ## Run locally
 

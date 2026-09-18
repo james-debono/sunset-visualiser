@@ -24,10 +24,38 @@
  *   'subsolar' -- x(t) is the real, measured great-circle distance from the
  *      observer to the subsolar point. No free parameters, but the flat Sun
  *      then starts at the wrong elevation.
+ *
+ * There is also a choice of *path*:
+ *
+ *   'straight' (default) -- the local-plane steelman above: the Sun recedes in
+ *      a straight line at the measured speed of the subsolar point.
+ *
+ *   'gleason' -- the azimuthal-equidistant disc that flat-Earth maps use (the
+ *      Gleason map and its relatives). The north pole is the centre, distance
+ *      from the pole is preserved, and the Sun circles above the latitude of
+ *      its own declination. Nothing is fitted here: once you accept the map,
+ *      the Sun's whole path follows from it, including a speed and a bearing
+ *      that the straight-line version never had to commit to.
  */
 
 import { DEG, RAD, NAKED_EYE_RESOLUTION_DEG } from './constants.js';
-import { subsolarSpeedKmh } from './solar.js';
+import { R_EARTH_KM, subsolarSpeedKmh } from './solar.js';
+
+/**
+ * Where a latitude lands on an azimuthal-equidistant map centred on the north
+ * pole: distance from the centre equals distance from the pole on the real
+ * Earth. The north pole is 0, the equator is a quarter of a circumference out,
+ * and the south pole is smeared around the rim.
+ */
+export const aeRadiusKm = (latDeg) => R_EARTH_KM * (Math.PI / 2 - latDeg * DEG);
+
+/**
+ * The map's own equator, measured along it. The real equator is 40,075 km, so
+ * this comes out about 57% too long -- which is where the flat model's extra
+ * Sun speed comes from, and is itself checkable against any pair of flight
+ * times or time zones near the equator.
+ */
+export const aeEquatorLengthKm = () => 2 * Math.PI * aeRadiusKm(0);
 
 /**
  * @param {object} cfg
@@ -42,30 +70,70 @@ import { subsolarSpeedKmh } from './solar.js';
  *   everywhere rather than two that differ in the fourth decimal place.
  */
 export function makeFlatModel(cfg) {
-  const { globe, startSolarTime, heightKm, anchor = 'elevation' } = cfg;
+  const { globe, startSolarTime, heightKm, anchor = 'elevation', path = 'straight' } = cfg;
 
   const start = globe.sample(startSolarTime);
   const declinationDeg = cfg.declinationDeg ?? start.declinationDeg;
+  const latDeg = cfg.latDeg ?? globe.config.latDeg;
 
-  /** Speed of the Sun across the plane, km/h -- the measured subsolar speed. */
-  const speedKmh = subsolarSpeedKmh(declinationDeg);
+  // Map geometry, used only by the 'gleason' path.
+  const rObs = aeRadiusKm(latDeg);
+  const rSun = aeRadiusKm(declinationDeg);
+
+  /**
+   * Speed of the Sun over the ground.
+   *
+   * On the local plane this is the measured speed of the subsolar point. On
+   * the map it is set by the map instead: the Sun has to get round a circle of
+   * radius rSun in one day, and because the map stretches everything south of
+   * the pole, that circle is longer than the real parallel it stands for.
+   */
+  const speedKmh = path === 'gleason'
+    ? (2 * Math.PI * rSun) / 24
+    : subsolarSpeedKmh(declinationDeg);
 
   /**
    * Horizontal distance from observer to the point directly below the Sun,
    * at the start of the window.
    */
   const startAltRad = start.altitudeDeg * DEG;
-  const x0 = anchor === 'subsolar'
-    ? start.groundDistanceToSubsolarKm
-    : heightKm / Math.tan(startAltRad);
+  const x0 = path === 'gleason'
+    ? mapDistanceKm(startSolarTime)
+    : anchor === 'subsolar'
+      ? start.groundDistanceToSubsolarKm
+      : heightKm / Math.tan(startAltRad);
 
   /** Distance to the Sun at the start, and the Sun radius that calibration implies. */
   const startDistanceKm = Math.hypot(x0, heightKm);
   const sunRadiusKm = startDistanceKm * Math.sin(0.5 * start.angularDiameterDeg * DEG);
   const sunDiameterKm = 2 * sunRadiusKm;
 
+  /**
+   * Straight-line distance across the map from the observer to the point below
+   * the Sun. Both sit on circles about the pole, separated by the hour angle,
+   * so this is the cosine rule in the map plane.
+   */
+  function mapDistanceKm(solarTimeHours) {
+    const H = globe.sample(solarTimeHours).hourAngleDeg * DEG;
+    return Math.sqrt(rObs * rObs + rSun * rSun - 2 * rObs * rSun * Math.cos(H));
+  }
+
+  /**
+   * Compass bearing of the Sun as the map has it, in degrees east of north.
+   * At the observer, "north" points at the centre of the map and "east" is the
+   * direction of increasing longitude.
+   */
+  function mapBearingDeg(solarTimeHours) {
+    const H = globe.sample(solarTimeHours).hourAngleDeg * DEG;
+    // Observer at map angle 0; the Sun is H west of it, i.e. at angle -H.
+    const dx = rSun * Math.cos(H) - rObs;     // outward from the pole
+    const dy = -rSun * Math.sin(H);           // eastward
+    return (Math.atan2(dy, -dx) * RAD + 360) % 360;
+  }
+
   /** Horizontal distance at a given time. */
   function horizontalKm(solarTimeHours) {
+    if (path === 'gleason') return mapDistanceKm(solarTimeHours);
     if (anchor === 'subsolar') {
       return globe.sample(solarTimeHours).groundDistanceToSubsolarKm;
     }
@@ -95,8 +163,9 @@ export function makeFlatModel(cfg) {
   }
 
   /**
-   * Closed-form rate, valid in 'elevation' mode where x is linear in t.
-   * Cross-checked against the numerical form in the test suite.
+   * Closed-form rate, valid on the straight path with the elevation anchor,
+   * where x is linear in t. The map path curves, so the app uses the numerical
+   * rate there. Cross-checked against the numerical form in the test suite.
    *
    *   d = sqrt(x^2 + h^2),  dd/dt = x v / d
    *   theta = 2 asin(r/d)  =>  dtheta/dt = -2 (r/d^2)/sqrt(1-(r/d)^2) * dd/dt
@@ -112,8 +181,18 @@ export function makeFlatModel(cfg) {
   return {
     config: cfg,
     anchor,
+    path,
     declinationDeg,
+    latDeg,
     speedKmh,
+    /** Map geometry, for the plan-view inset and the readouts. */
+    map: {
+      observerRadiusKm: rObs,
+      sunRadiusKm: rSun,
+      equatorLengthKm: aeEquatorLengthKm(),
+      distanceKm: mapDistanceKm,
+      bearingDeg: mapBearingDeg,
+    },
     sunRadiusKm,
     sunDiameterKm,
     startHorizontalKm: x0,
@@ -144,11 +223,12 @@ export function makeFlatModel(cfg) {
  */
 export function minimumHeightForImperceptibleShrink({
   globe, startSolarTime, endSolarTime, anchor = 'elevation', declinationDeg,
+  path = 'straight',
   thresholdDeg = NAKED_EYE_RESOLUTION_DEG,
   loKm = 1, hiKm = 1e9,
 }) {
   const shrink = (h) => {
-    const m = makeFlatModel({ globe, startSolarTime, heightKm: h, anchor, declinationDeg });
+    const m = makeFlatModel({ globe, startSolarTime, heightKm: h, anchor, declinationDeg, path });
     return m.sample(startSolarTime).angularDiameterDeg
          - m.sample(endSolarTime).angularDiameterDeg;
   };
