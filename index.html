@@ -132,10 +132,14 @@
           Sun height
           <input type="range" id="height-slider" min="0" max="1000" step="1" aria-label="Sun height, logarithmic slider">
         </label>
-        <span class="field">
-          <input type="number" id="height-input" min="1" step="any" aria-label="Sun height value">
-          <span class="unit" id="height-unit">km</span>
-          <span class="unit alt" id="height-alt"></span>
+        <span class="field" id="height-km-field">
+          <input type="number" id="height-km" min="1" step="any" aria-label="Sun height in kilometres">
+          <span class="unit">km</span>
+        </span>
+        <span class="field" id="height-mi-field">
+          <span class="unit eq" id="height-eq" aria-hidden="true">=</span>
+          <input type="number" id="height-mi" min="1" step="any" aria-label="Sun height in miles">
+          <span class="unit">mi</span>
         </span>
         <label class="field">
           <select id="height-presets" aria-label="Height presets"></select>

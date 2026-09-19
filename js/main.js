@@ -783,24 +783,33 @@ $('loupe').addEventListener('change', (e) => {
   requestRender();
 });
 
-// Sun height: logarithmic slider plus a typed value in the current unit.
+// Sun height: logarithmic slider plus a typed value in each unit.
 const heightSlider = $('height-slider');
-const heightInput = $('height-input');
+const heightKmInput = $('height-km');
+const heightMiInput = $('height-mi');
 const logMin = Math.log10(HEIGHT_MIN_KM), logMax = Math.log10(HEIGHT_MAX_KM);
 const sliderFromHeight = (km) => Math.round(((Math.log10(km) - logMin) / (logMax - logMin)) * 1000);
 const heightFromSlider = (v) => Math.pow(10, logMin + (v / 1000) * (logMax - logMin));
-const inputInMiles = () => state.units === 'imperial';
+/** Write the current height into one of the boxes, in that box's unit. */
+function writeHeightBox(input) {
+  const v = input === heightMiInput ? kmToMiles(state.heightKm) : state.heightKm;
+  input.value = String(Math.round(v));
+}
 
 function syncHeightControls() {
   heightSlider.value = String(sliderFromHeight(state.heightKm));
-  const v = inputInMiles() ? kmToMiles(state.heightKm) : state.heightKm;
-  if (document.activeElement !== heightInput) heightInput.value = String(Math.round(v));
-  $('height-unit').textContent = inputInMiles() ? 'mi' : 'km';
-  // The other system alongside, so a height typed in one is readable in both.
-  const other = inputInMiles()
-    ? `= ${Math.round(state.heightKm).toLocaleString()} km`
-    : `= ${Math.round(kmToMiles(state.heightKm)).toLocaleString()} mi`;
-  $('height-alt').textContent = state.units === 'both' ? other : '';
+
+  // One box per unit, shown according to the units setting; "both" puts them
+  // side by side. The box being typed in is left alone until the entry is
+  // committed, so it never overwrites someone mid-number.
+  const showKm = state.units !== 'imperial', showMi = state.units !== 'metric';
+  $('height-km-field').hidden = !showKm;
+  $('height-mi-field').hidden = !showMi;
+  $('height-eq').hidden = !(showKm && showMi);
+  for (const box of [heightKmInput, heightMiInput]) {
+    if (document.activeElement !== box) writeHeightBox(box);
+  }
+
   heightSlider.setAttribute('aria-valuetext', dist(state.heightKm, 4));
 
   const select = $('height-presets');
@@ -827,11 +836,30 @@ function setHeight(km) {
 }
 
 heightSlider.addEventListener('input', () => setHeight(heightFromSlider(Number(heightSlider.value))));
-heightInput.addEventListener('change', () => {
-  const n = Number(heightInput.value);
-  if (!Number.isFinite(n) || n <= 0) { syncHeightControls(); return; }
-  setHeight(inputInMiles() ? milesToKm(n) : n);
-});
+/**
+ * Commit a typed height. 'change' fires on Enter or when the box loses focus,
+ * which is when the other box should follow. Nonsense is put back to the
+ * current value, and an out-of-range entry shows the clamped value it became.
+ */
+function commitHeight(input, toKm) {
+  const n = Number(input.value);
+  if (input.value.trim() === '' || !Number.isFinite(n) || n <= 0) {
+    writeHeightBox(input);
+    return;
+  }
+  const km = toKm(n);
+  setHeight(km);
+  if (state.heightKm !== km) writeHeightBox(input);
+}
+for (const [box, toKm] of [[heightKmInput, (n) => n], [heightMiInput, milesToKm]]) {
+  box.addEventListener('change', () => commitHeight(box, toKm));
+  // Enter does not fire 'change' in a number box outside a form (observed in
+  // Chromium), so it commits explicitly. If a browser does fire both, the same
+  // height is simply set twice.
+  box.addEventListener('keydown', (e) => { if (e.key === 'Enter') commitHeight(box, toKm); });
+  // Tidy the box that was typed in once focus leaves it, e.g. 1609.344 -> 1609.
+  box.addEventListener('blur', () => writeHeightBox(box));
+}
 
 function buildPresets() {
   const select = $('height-presets');

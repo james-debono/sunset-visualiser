@@ -498,9 +498,8 @@ a:hover { color: var(--ink); text-decoration-color: currentColor; }
   color: var(--muted);
   min-width: 1.6em;
 }
-.field .unit.alt {
+.field .unit.eq {
   min-width: 0;
-  white-space: nowrap;
 }
 
 .field select {
