@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://sunset.observable.science/privacy">
+<link rel="icon" href="favicon.ico" sizes="32x32 48x48">
+<link rel="icon" href="img/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<title>Privacy &mdash; Sunset Visualiser</title>
+<meta name="description" content="This site sets no cookies and stores nothing on your device. What the host records, and how to check any of it for yourself.">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  body { background: var(--page); }
+
+  .doc {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 28px 20px 96px;
+    font-size: 14.5px;
+    line-height: 1.62;
+  }
+
+  .doc-head { border-bottom: 1px solid var(--hairline); padding-bottom: 18px; margin-bottom: 8px; }
+  .doc-head h1 { font-size: 26px; font-weight: 650; letter-spacing: -0.015em; margin: 0 0 6px; }
+  .doc-head .lede { color: var(--ink-2); margin: 0; max-width: 62ch; }
+  .doc-head nav { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 14px; font-size: 13px; }
+  .backbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    margin: -28px -20px 0;
+    padding: 10px 20px;
+    background: color-mix(in srgb, var(--page) 88%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid transparent;
+  }
+  .backbar.stuck { border-bottom-color: var(--hairline); }
+  .backbtn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 6px 14px 6px 11px;
+    border-radius: 999px; border: 1px solid var(--hairline); background: var(--surface);
+    color: var(--ink); text-decoration: none; font-weight: 500;
+  }
+  .backbtn:hover { border-color: var(--axis); }
+
+  .doc h2 {
+    font-size: 19px;
+    font-weight: 620;
+    letter-spacing: -0.01em;
+    margin: 44px 0 4px;
+    padding-top: 18px;
+    border-top: 1px solid var(--hairline);
+  }
+  .doc h2 .n { color: var(--muted); font-weight: 500; margin-right: 8px; }
+  .doc h3 { font-size: 15px; font-weight: 620; margin: 28px 0 4px; }
+  .doc p { margin: 10px 0; max-width: 74ch; }
+  .doc ul, .doc ol { max-width: 74ch; padding-left: 22px; }
+  .doc li { margin: 5px 0; }
+  .doc strong { font-weight: 620; }
+
+  /* Where a formula's implementation lives. */
+  .impl {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--ink-2);
+    background: var(--surface-2);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    padding: 3px 8px;
+    display: inline-block;
+    margin: 4px 0 2px;
+  }
+  code {
+    font-family: var(--mono);
+    font-size: 0.9em;
+    background: var(--surface-2);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  /* Display formulae. Set in the page's own type, with italic variables. */
+  .eq {
+    margin: 14px 0;
+    padding: 13px 18px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-left: 3px solid var(--globe);
+    border-radius: 8px;
+    font-size: 16px;
+    line-height: 1.9;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .eq i, .doc p i, .doc li i, td i { font-style: italic; font-family: Georgia, "Times New Roman", serif; }
+  .eq .where { display: block; font-size: 12.5px; color: var(--muted); white-space: normal; margin-top: 6px; }
+  .eq.stack { white-space: normal; }
+  .eq .line { display: block; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 16px 0;
+    font-size: 13.5px;
+  }
+  th, td { text-align: left; padding: 7px 12px 7px 0; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  thead th { color: var(--muted); font-weight: 500; font-size: 12.5px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr:last-child td { border-bottom: 0; }
+
+  .callout {
+    margin: 18px 0;
+    padding: 12px 16px;
+    background: var(--surface-2);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    font-size: 13.5px;
+  }
+  .callout p { margin: 6px 0; }
+  .callout p:first-child { margin-top: 0; }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .toc { background: var(--surface); border: 1px solid var(--hairline); border-radius: 10px; padding: 14px 18px; margin: 26px 0 0; }
+  .toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; font-size: 13.5px; }
+  @media (max-width: 620px) { .toc ol { columns: 1; } }
+
+  .doc-foot { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--hairline); color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<article class="doc">
+
+  <div class="backbar" id="backbar">
+    <a class="backbtn" href="index.html" data-back>&larr; Back to the visualiser</a>
+  </div>
+
+  <header class="doc-head">
+    <h1>Privacy</h1>
+    <p class="lede">This site sets no cookies and stores nothing on your device. Nothing here asks you to take that on trust: every claim below is one you can check yourself, in the same spirit as the rest of the site.</p>
+    <nav>
+      <a href="maths.html">The maths</a>
+      <a href="tests.html">Verification tests</a>
+      <a href="https://github.com/james-debono/sunset-visualiser" target="_blank" rel="noopener">Source &amp; feedback on GitHub <span aria-hidden="true">&#8599;</span></a>
+    </nav>
+  </header>
+
+  <h2><span class="n">1</span> What is stored on your device</h2>
+
+  <p><strong>Nothing.</strong> No cookies, no local storage, no session storage, no databases, no service workers. There is no consent banner because there is nothing to consent to: the cookie rules govern storing or reading information on your device, and this site does neither.</p>
+
+  <p>Your settings &mdash; place, date, refraction, lens, the position of the timeline &mdash; live in the address bar, after the <code>#</code>. That is part of the link, not something kept on your machine, which is why you can send someone a link and have them see exactly what you were looking at.</p>
+
+  <p><strong>To check:</strong> press F12, open <em>Application</em> (Chrome) or <em>Storage</em> (Firefox), and look at Cookies, Local Storage, Session Storage and IndexedDB. All empty, however long you use the page.</p>
+
+  <h2><span class="n">2</span> What the host records</h2>
+
+  <p>The site is hosted by Cloudflare, which keeps standard web server logs: your IP address, the time, which page you asked for, your browser's user-agent string, and the page you arrived from. Any web server anywhere records something of this kind in order to answer a request at all. Those logs belong to Cloudflare and are handled under <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">their privacy policy</a>.</p>
+
+  <p>Cloudflare also adds a small analytics script to these pages, loaded from <code>static.cloudflareinsights.com</code>, which reports page views and how quickly the page loaded. It uses no cookies and no device storage. It is injected by the host rather than written into the site's code, which is why you will find no trace of it in the source files.</p>
+
+  <p>That is the whole of it. No advertising, no third-party trackers, no accounts, no sign-ups, no forms, no email list, and nothing that identifies you personally.</p>
+
+  <h2><span class="n">3</span> Links that leave the site</h2>
+
+  <p>The header links to GitHub and to a YouTube channel. Following either takes you to a company that has its own policies and its own cookies. Nothing is shared with them unless you click.</p>
+
+  <h2><span class="n">4</span> Getting in touch</h2>
+
+  <p>Corrections and questions are welcome as <a href="https://github.com/james-debono/sunset-visualiser/issues" target="_blank" rel="noopener">issues on GitHub</a>. There is no contact form here, and no address to collect.</p>
+
+  <p class="doc-foot">Every file this site serves is public at <a href="https://github.com/james-debono/sunset-visualiser" target="_blank" rel="noopener">github.com/james-debono/sunset-visualiser</a>. If anything above is wrong, the source will show it.</p>
+
+</article>
+<script>
+  // Going "back" is preferable to a fresh load: the visualiser keeps its whole
+  // state in the URL, and the history entry has it. Only do that when we
+  // actually arrived from there, so the button still works on a direct visit.
+  for (const a of document.querySelectorAll('[data-back]')) {
+    a.addEventListener('click', (e) => {
+      if (history.length < 2 || !document.referrer) return;
+      const from = new URL(document.referrer, location.href);
+      if (from.origin !== location.origin) return;
+      if (!/(^|\/)(index\.html)?$/.test(from.pathname)) return;
+      e.preventDefault();
+      history.back();
+    });
+  }
+
+  const bar = document.getElementById('backbar');
+  if (bar) {
+    const sentinel = document.createElement('div');
+    bar.parentNode.insertBefore(sentinel, bar);
+    new IntersectionObserver(
+      ([e]) => bar.classList.toggle('stuck', e.intersectionRatio === 0),
+      { threshold: [0, 1] },
+    ).observe(sentinel);
+  }
+</script>
+</body>
+</html>
