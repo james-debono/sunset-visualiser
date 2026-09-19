@@ -197,6 +197,25 @@ a:hover { color: var(--ink); text-decoration-color: currentColor; }
   white-space: nowrap;
 }
 .seg button:hover { color: var(--ink); }
+
+/* The path control picks which flat Earth is on screen, so it wears the flat
+   model's own colour. That is the same colour the flat Sun, its charts and its
+   readouts already use, so the tint is a statement about what the control
+   does, not a decorative highlight. */
+#path {
+  border-color: color-mix(in srgb, var(--flat) 45%, var(--hairline));
+  background: color-mix(in srgb, var(--flat) 10%, var(--surface-2));
+}
+#path button { color: color-mix(in srgb, var(--flat) 55%, var(--ink)); }  /* 6.2:1 light, 6.9:1 dark */
+#path button:hover { color: var(--flat); }
+#path button[aria-pressed="true"] {
+  /* 80% of the flat colour, not 100%: white on the full orange is 3.2:1 in the
+     light theme, under the 4.5:1 needed at this size. This reads as the same
+     colour and measures 4.8:1 light, 5.7:1 dark. */
+  background: color-mix(in srgb, var(--flat) 80%, #000);
+  color: #fff;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--flat) 65%, transparent), 0 1px 2px rgba(0, 0, 0, 0.18);
+}
 .seg button[aria-pressed="true"] {
   background: var(--surface);
   color: var(--ink);
